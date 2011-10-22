@@ -13,7 +13,16 @@ Ltac destruct_div :=
     | [ |- (?a | ?b) \/ (?c | ?d) ] => destruct (Zdivide_dec a b); [ left; assumption | right ]
   end.
 
-Theorem prime_product_repr : forall n, 
+Inductive prod_primes : Z -> Prop :=
+  | idprime : forall n, prime n -> prod_primes n
+  | recprime : forall n a b, (n = b * a /\ prod_primes a /\ prod_primes b) -> prod_primes n.
+
+Hint Constructors prod_primes.
+
+Theorem all_prod_primes : forall n, n > 2 -> prod_primes n.
+  apply (Zind (fun n => n>2 -> prod_primes n));  crush.
+  
+  
 
 (* this proof is a piece of shit. *)
 Theorem euclids_lemma : forall p a b, prime p -> (p | a * b) -> (p | a) \/ (p | b).
