@@ -2,6 +2,7 @@ Require Import CpdtTactics.
 Require Import List.
 Require Import Znumtheory.
 Require Import BinInt.
+Require Import Classical.
 
 Ltac destruct_div :=
   intros;
@@ -18,9 +19,38 @@ Inductive prod_primes : Z -> Prop :=
   | recprime : forall n a b, (n = b * a /\ prod_primes a /\ prod_primes b) -> prod_primes n.
 
 Hint Constructors prod_primes.
+Hint Resolve prime_alt.
+
+
+Lemma not_prime_divisible : forall z, z > 1 -> ~ (prime z) -> exists x, x < z /\ (x | z).
+  intros.
+  assert (~ prime' z).
+  destruct (prime_alt z).
+  crush.
+  unfold prime' in H1.
+  apply not_and_or in H1.
+  crush.
+  apply not_all_ex_not in H2.
+  destruct H2.
+  apply imply_to_and in H1.
+  crush.
+  apply NNPP in H3.
+  exists x.
+  crush.
+Qed.  
+
+Hint Resolve not_prime_divisible.
+
+Lemma prime_or_divisible : forall z, prime z \/ exists x, (x | z).
+  eauto with zarith.
+Qed.
+
+Hint Resolve prime_or_divisible.
 
 Theorem all_prod_primes : forall n, n > 2 -> prod_primes n.
-  apply (Zind (fun n => n>2 -> prod_primes n));  crush.
+  assert (forall k n, n <= k -> n > 2 -> prod_primes n).
+  apply (Zind (fun k => (forall n, n <= k -> n > 2 -> prod_primes n)));  crush.
+  
   
   
 
