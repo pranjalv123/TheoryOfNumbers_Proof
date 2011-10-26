@@ -4,6 +4,8 @@ Require Import ZArith.
 Require Import Znumtheory.
 Require Import Classical.
 
+Set Implicit Arguments.
+
 Ltac destruct_div :=
   intros;
   repeat match goal with
@@ -59,7 +61,7 @@ Theorem all_prod_primes : forall n, n > 1 -> prod_primes n.
   apply not_prime_divisible; crush.
   destruct H2.
   destruct H2.
-  apply (recprime n (Zabs x0) (n / (Zabs x0))); crush.
+  apply (@recprime n (Zabs x0) (n / (Zabs x0))); crush.
   rewrite Zmult_comm.
   apply Zdivide_Zdiv_eq.
   assert (x0 <> 0).
@@ -108,105 +110,33 @@ Theorem euclids_lemma : forall p a b, prime p -> (p | a * b) -> (p | a) \/ (p | 
   rewrite <- (Zmult_plus_distr_l).
   rewrite H1.
   apply Zmult_1_l.
+  assert (b = (u * b + v * q) * p).
   rewrite <- (Zmult_assoc v a b) in H2.
   rewrite H0 in H2.
-  (*match goal with
-    | [ H : context [ p ] |- _ ] => match H with
-                                      | context [ p * ?m ] => pose 1 (*rewrite (Zmult_comm p m) in H *)
-                                      
-                                      | _ => pose H
-                                    end
-  end.*)
   rewrite (Zmult_assoc v q p) in H2.
   rewrite <- (Zmult_assoc u p b) in H2.
   rewrite (Zmult_comm p b) in H2.
   rewrite (Zmult_assoc) in H2.
   rewrite <- (Zmult_plus_distr_l) in H2.
-  symmetry in H2.
+  auto.
   pose (Zdivide_intro p b (u * b + v * q)).
   auto.
 Qed.
 
+Require Import Classical_sets.
+Require Import Finite_sets.
 
+Inductive prime_exp_pair := pep_intro : forall p e, prime p -> e >= 0 -> prime_exp_pair.
 
-(*Inductive divides : nat -> nat -> Prop :=
-  div : forall a b, (exists x, b = a * x) -> divides a b.
+Inductive prime_power_list :=
+  | ppl_intro : forall (pairs : Ensemble prime_exp_pair), Finite _ pairs -> prime_power_list.
 
-Hint Constructors divides.
-
-Theorem div5_15 : divides 5 15.
-  constructor.
-  crush.
-  exists 3.
-  crush.
-Qed.
-
-Hint Resolve mult.
-
-Notation "( a | b )" := (divides a b).
-
-Lemma div_add : forall a b c, (a | b) -> (a | c) -> (a | (b + c)).
-  intros.
-  constructor.
-  destruct H.
-  destruct H0.
-  destruct H.
-  destruct H0.
-  subst.
-  exists (x + x0).
-  rewrite mult_plus_distr_l.
-  reflexivity.
-Qed.
-
-Lemma div_mult : forall a b c, (a | b) -> (a | b * c).
-  intros.
-  destruct H.
-  constructor.
-  destruct H.
-  exists (x * c); crush.
-Qed.
-
-Hint Resolve div_add div_mult.
-
-Theorem div_lin_comb : forall a b c x y, (a | b) -> (a | c) -> (a | b * x + c * y).
-  intros.
-  apply div_add; crush.
-Qed.
-
-Lemma div_bound : forall a b, (a | b) -> b > 0 -> a <= b.
-  intros.
-  destruct H.
-  destruct H.
-  destruct x.
-  crush.
-  rewrite mult_comm in H.
-  crush.
-Qed.
-
-Theorem div_dec : forall a b, (a | b) \/ ~(a | b).
-  
-
-Notation "'Yes'" := (left _ _).
-Notation "'No'" := (right _ _).
-Notation "'YesT'" := (inleft _ _).
-Notation "'NoT'" := (inright _ _).
-
-Fixpoint gcd (a b : nat) : nat :=
-  match (le_lt_dec a b) with
-    | left _ => gcd a (b - a)
-    | right _ => gcd b (a - b)
+Fixpoint ppl_product (ppl : prime_power_list) : Z :=
+  match ppl with
+    | ppl_intro _ fin => match fin with
+                           | Empty_is_finite => 1
+                           | Union_is_finite ppl' pairs' x nin => 1
+                         end
   end.
 
-Inductive prime : nat -> Prop :=
-  pr_intro : forall a p, ((a | p) -> (a = 1) \/ (a = p)) -> prime p.
-
-
-  
-Lemma def_divides : forall a b, divides a b -> (exists x, b = a * x).
-  intros.
-  
-
-Theorem T1_1_a : forall a b c, divides a b -> divides a (b*c).
-  crush.
-  constructor.
-  assert (exists y, b = a * y). *)
+Theorem fundamental_theorem_of_arithmetic : forall n : nat
