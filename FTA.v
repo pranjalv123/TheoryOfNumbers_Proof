@@ -42,12 +42,6 @@ Qed.
 
 Hint Resolve not_prime_divisible.
 
-Lemma prime_or_divisible : forall z, prime z \/ exists x, (x | z).
-  eauto with zarith.
-Qed.
-
-Hint Resolve prime_or_divisible.
-
 Hint Resolve Zdivide_Zdiv_eq.
 
 (* what a piece of shit... *)
@@ -123,20 +117,107 @@ Theorem euclids_lemma : forall p a b, prime p -> (p | a * b) -> (p | a) \/ (p | 
   auto.
 Qed.
 
-Require Import Classical_sets.
-Require Import Finite_sets.
+Theorem prime_divis : forall n, n > 1 -> exists p, prime p /\ (p | n).
+  assert (forall k n, n <= k -> n > 1 -> exists p, prime p /\ (p | n)).
+  apply (Zind (fun k => forall n, n <= k -> n > 1 -> exists p, prime p /\ (p | n))).
+  crush.
+  crush.
+  destruct (prime_dec n).
+  exists n; crush.
+  pose (not_prime_divisible H1 n0).
+  destruct e.
+  specialize (H x0).
+  rewrite <- Zsucc_succ' in H0.
+  destruct H2.
+  assert (exists p : Z, prime p /\ (p | x0)) by (apply H; crush).
+  destruct H4.
+  destruct H4.
+  exists x1.
+  crush.
+  eapply Zdivide_trans; eauto.
+  intros.
+  apply H.
+  rewrite <- Zpred_pred' in H0.
+  pose (Zle_pred x).
+  crush.
+  assumption.
+  intros.
+  specialize (H n n).
+  crush.
+Qed.
 
-Inductive prime_exp_pair := pep_intro : forall p e, prime p -> e >= 0 -> prime_exp_pair.
+Require Import MSets.
 
-Inductive prime_power_list :=
-  | ppl_intro : forall (pairs : Ensemble prime_exp_pair), Finite _ pairs -> prime_power_list.
+Module PEP.
+  Inductive prime_exp_pair := pep_intro : forall p e, prime p -> e >= 0 -> prime_exp_pair.
 
-Fixpoint ppl_product (ppl : prime_power_list) : Z :=
-  match ppl with
-    | ppl_intro _ fin => match fin with
-                           | Empty_is_finite => 1
-                           | Union_is_finite ppl' pairs' x nin => 1
-                         end
-  end.
+  Definition pair_to_prime (pep : prime_exp_pair) : sig prime :=
+    match pep with
+      | pep_intro p _ pf _ => exist prime p pf
+    end.
+  
+  Definition t := prime_exp_pair.
+  
+  Definition pep_to_pair (pep : t) : Z * Z :=
+    match pep with
+      | pep_intro p e _ _ => (p, e)
+    end.
+  
+  Definition eq := @eq t.
+  Definition eq_equiv : Equivalence eq := eq_equivalence.
+  
+  Theorem eq_dec : forall x y : t, {x = y} + {x <> y}.
+    intros.
+    destruct x.
+    destruct y.
+    destruct (Z_eq_dec p p1);
+      destruct (Z_eq_dec e e0).
+    left.
+    subst.
+    assert (p0 = p2) by (apply proof_irrelevance).
+    assert (z0 = z) by (apply proof_irrelevance).
+    crush.
+    right; crush.
+    right.
+    intro.
+    inversion H.
+    crush.
+    right; crush.
+  Qed.
 
-Theorem fundamental_theorem_of_arithmetic : forall n : nat
+  Definition pep_value (pep : t) : Z :=
+    let (p, e) := pep_to_pair pep in p ^ e.  
+End PEP.
+
+Module PPL.
+  Include MSetWeakList.Make PEP.
+
+  Axiom unique_first : forall s n, (is_empty s = true) \/ cardinal (filter (fun x : PEP.t => Zeq_bool (fst (PEP.pep_to_pair x)) n) s) = (S O).
+
+  Definition ppl_product (ppl : PPL.t) : Z :=
+    fold_left Zmult (map PEP.pep_value (elements ppl)) 1.
+End PPL.
+
+Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n.
+  assert (forall k n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n).
+  apply (Zind (fun k => forall n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n)).
+  crush.
+  intros.
+  rewrite <- Zsucc_succ' in H0.
+  destruct (Z_le_lt_eq_dec 1 n).
+  crush.
+  apply Zlt_gt in z.
+  pose (prime_divis z).
+  destruct e.
+  destruct H2.
+  destruct H3.
+  destruct (H q).
+  assert (q | n).
+  crush.
+  pose (Zdivide_bounds q n).
+  
+  
+  
+  
+  exists PPL.empty.
+  crush.
