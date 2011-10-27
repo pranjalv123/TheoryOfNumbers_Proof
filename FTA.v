@@ -200,7 +200,8 @@ End PPL.
 
 Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n.
   assert (forall k n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n).
-  apply (Zind (fun k => forall n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n)).
+  apply (Zind (fun k => forall n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPassert (Zabs q = q).
+  L.ppl_product ppl = n)).
   crush.
   intros.
   rewrite <- Zsucc_succ' in H0.
