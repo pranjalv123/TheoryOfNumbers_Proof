@@ -22,22 +22,29 @@ Inductive prod_primes : Z -> Prop :=
 
 Hint Constructors prod_primes.
 Hint Resolve prime_alt.
+Lemma left_not_or : forall P1 P2 : Prop,  (P1 \/ P2) -> (P1 -> False) -> P2. intuition. Qed.
+Lemma right_not_or : forall P1 P2 : Prop, (P1 \/ P2) ->(P2 -> False)  -> P1. intuition. Qed.
+Hint Extern 1 => match goal with
+                   | [H:((_ -> False) -> False)|- _] => (apply NNPP in H )
+                   | [H: (_ -> _ -> _ ) -> _ |- _] => apply imply_to_and in H
+                   | [H: ~ (_) |- _ ] => unfold not in H
+                   | [H: _ /\ _ |- _ ] => decompose [and] H; clear H
+                   | [H: exists _, _ |- _ ] => destruct H
+                   | [H: (forall _, _) -> False |- _ ] => apply not_all_ex_not in H
+                   | [H: _ \/ _ |- _ ] => apply left_not_or in H; intuition
+                   | [H: _ \/ _ |- _ ] => apply right_not_or in H; intuition
+                 end.
+Hint Extern 1 => match goal with
+                   | [H: (_ /\ _) -> False |- _] => apply not_and_or in H
+                 end.
 
 Lemma not_prime_divisible : forall z, z > 1 -> ~ (prime z) -> exists x, 1 < x < z /\ (x | z).
   intros.
-  assert (~ prime' z).
-  destruct (prime_alt z).
-  crush.
+  assert (~ prime' z);
+  destruct (prime_alt z);
+  intuition;
   unfold prime' in H1.
-  apply not_and_or in H1.
-  crush.
-  apply not_all_ex_not in H2.
-  destruct H2.
-  apply imply_to_and in H1.
-  crush.
-  apply NNPP in H3.
-  exists x.
-  crush.
+  eauto 15.
 Qed.
 
 Hint Resolve not_prime_divisible.
@@ -216,9 +223,9 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   assert (q | n).
   crush.
   pose (Zdivide_bounds q n).
-  
-  
-  
+
+
+
   
   exists PPL.empty.
   crush.
