@@ -148,6 +148,8 @@ Module PEP.
   Definition pep_exp (pep : t) : Z :=
     let (p, e) := pep_to_pair pep in e.
 
+  Ltac simpl_peps := unfold PEP.pep_prime in *; unfold PEP.pep_exp in *; unfold PEP.pep_value in *; unfold PEP.pep_to_pair in *; simpl in *; fold PEP.pep_prime in *; fold PEP.pep_exp in *; fold PEP.pep_value in *.
+
   Lemma pep_exp_succ :
     forall pep1 pep2, pep_prime pep1 = pep_prime pep2 -> pep_exp pep1 = Zsucc (pep_exp pep2) -> pep_value pep1 = (pep_prime pep1) * (pep_value pep2).
     intros.
@@ -165,6 +167,19 @@ Module PEP.
     crush.
     ring.
   Qed.
+
+  Lemma pep_pair_sufficient : forall pep1 pep2, pep_to_pair pep1 = pep_to_pair pep2 -> pep1 = pep2.
+    intros.
+    destruct pep1.
+    destruct pep2.
+    simpl_peps.
+    inversion H; clear H.
+    subst.
+    rewrite (proof_irrelevance _ p0 p2).
+    rewrite (proof_irrelevance _ z0 z).
+    reflexivity.
+  Qed.
+    
 End PEP.
 
 Hint Unfold PEP.pep_value PEP.pep_to_pair.
@@ -173,7 +188,7 @@ Module PPL.
   Include MSetWeakList.Make PEP.
 
   Definition unique_primes (ppl : PPL.t) : Prop :=
-    forall pep1 pep2, In pep1 ppl -> In pep2 ppl -> PEP.pep_prime pep1 = PEP.pep_prime pep2 -> PEP.pep_value pep1 = PEP.pep_value pep2.
+    forall pep1 pep2, In pep1 ppl -> In pep2 ppl -> PEP.pep_prime pep1 = PEP.pep_prime pep2 -> pep1 = pep2.
 
   Definition add_to_product (pep : PEP.t) (product : Z) : Z :=
     (PEP.pep_value pep) * product.
@@ -197,19 +212,28 @@ Module PPLProps.
   Qed.
 
   Hint Rewrite Zmult_assoc : cpdt.
+
+  Lemma proper_atp : Proper (eq==>eq==>eq) PPL.add_to_product.
+    crush.
+  Qed.
+
+  Lemma transpose_atp : transpose eq PPL.add_to_product.
+    unfold transpose.
+    unfold PPL.add_to_product.
+    intros.
+    ring.
+  Qed.
   
   Lemma ppl_product_add : forall (pep : PEP.t) (ppl : PPL.t), ~ PPL.In pep ppl -> PPL.ppl_product (PPL.add pep ppl) = (PEP.pep_value pep) * (PPL.ppl_product ppl).
     intros.
-    assert (Proper (eq==>eq==>eq) PPL.add_to_product) by crush.
-    assert (transpose eq PPL.add_to_product).
-    unfold transpose.
+    apply (fold_add eq_equivalence proper_atp transpose_atp 1 H).
+  Qed.
+
+  Lemma ppl_product_remove : forall (pep : PEP.t) (ppl : PPL.t), PPL.In pep ppl -> PPL.ppl_product ppl = (PEP.pep_value pep) * PPL.ppl_product (PPL.remove pep ppl).
     intros.
-    unfold PPL.add_to_product.
-    rewrite Zmult_assoc.
-    rewrite (Zmult_comm (PEP.pep_value x) (PEP.pep_value y)).
+    unfold PPL.ppl_product.
+    rewrite <- (remove_fold_1 eq_equivalence proper_atp transpose_atp 1 H).
     crush.
-    apply (fold_add eq_equivalence H0 H1).
-    apply H.
   Qed.
 End PPLProps.
 
@@ -268,19 +292,48 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   rewrite PPLProps.ppl_product_add.
   split.
   rewrite (PEP.pep_exp_succ p1 e).
-
-  (* this solves a bunch of subgoals. *)
-  admit.
+  rewrite H3.
+  rewrite <- H8.
+  rewrite (PPLProps.ppl_product_remove H10).
+  PEP.simpl_peps.
+  subst x0.
+  ring.
+  PEP.simpl_peps; crush.
+  PEP.simpl_peps; crush.
+  unfold PPL.unique_primes in *; intros.
+  apply PPL.add_spec in H13; apply PPL.add_spec in H14; destruct H13; destruct H14.
   crush.
-  crush.
-  admit.
-  admit.
-  assert (1 >= 0) by crush.
+  apply PPL.remove_spec in H14; destruct H14.
+  specialize (H9 _ _ H10 H14).
+  elimtype False.
+  apply H16.
+  rewrite H9.
+  reflexivity.
+  rewrite <- H15.
+  subst pep1 p1.
+  PEP.simpl_peps; crush.
+  apply PPL.remove_spec in H13; destruct H13.
+  specialize (H9 _ _ H10 H13).
+  elimtype False.
+  apply H16.
+  rewrite H9.
+  reflexivity.
+  rewrite H15.
+  subst pep2 p1.
+  PEP.simpl_peps; crush.
+  apply PPL.remove_spec in H14; destruct H14.
+  apply PPL.remove_spec in H13; destruct H13.
+  apply H9; try assumption.
+  intro.
+  apply PPL.remove_spec in H13; destruct H13.
+  apply H14.
+  apply PEP.pep_pair_sufficient.
+  PEP.simpl_peps; crush.
+  assert (1 >= 0) by omega.
   exists (PPL.add (PEP.pep_intro H4 H11) x1).
   split.
   rewrite PPLProps.ppl_product_add.
-  unfold PEP.pep_value.
-  unfold PEP.pep_to_pair.
+  PEP.simpl_peps.
   unfold Zpower.
   unfold Zpower_pos.
   simpl.
@@ -288,9 +341,42 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   rewrite H8.
   rewrite H3.
   apply Zmult_comm.
-  admit.
-  admit.
-  admit.
+  pose (@not_ex_all_not PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
+  simpl in n0.
+  specialize (n0 H10 (PEP.pep_intro H4 H11)).
+  apply not_and_or in n0.
+  destruct n0; crush.
+  unfold PPL.unique_primes in *.
+  intros.
+  apply PPL.add_spec in H13.
+  apply PPL.add_spec in H12.
+  pose (@not_ex_all_not PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
+  simpl in n0.
+  specialize (n0 H10).
+  destruct H12; destruct H13; crush.
+  specialize (n0 pep2).
+  elimtype False.
+  apply n0.
+  split; try assumption.
+  unfold PEP.pep_prime at 1 in H14.
+  subst pep1.
+  simpl in H14.
+  crush.
+  specialize (n0 pep1).
+  elimtype False.
+  apply n0.
+  split; try assumption.
+  unfold PEP.pep_prime at 2 in H14.
+  subst pep2.
+  simpl in H14.
+  assumption. (* repetitive *)
+  subst n.
+  elimtype False.
+  eapply Zlt_irrefl.
+  instantiate (1 := q * x0).
+  rewrite <- e at 1.
+  rewrite <- Zmult_1_r at 1.
+  apply Zmult_lt_compat_l; omega.
   exists PPL.empty.
   split.
   crush.
@@ -308,4 +394,5 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   apply (H n n); crush.
 Qed.
 
- 
+Theorem unique_ppl : forall ppl1 ppl2, PPL.ppl_product ppl1 = PPL.ppl_product ppl2 -> PPL.Equal ppl1 ppl2.
+  intros.
