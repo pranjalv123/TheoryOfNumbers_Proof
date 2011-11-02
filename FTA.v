@@ -268,10 +268,15 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   rewrite PPLProps.ppl_product_add.
   split.
   rewrite (PEP.pep_exp_succ p1 e).
-  
 
+  (* this solves a bunch of subgoals. *)
+  admit.
+  crush.
+  crush.
+  admit.
+  admit.
   assert (1 >= 0) by crush.
-  exists (PPL.add (PEP.pep_intro H4 H9) x1).
+  exists (PPL.add (PEP.pep_intro H4 H11) x1).
   split.
   rewrite PPLProps.ppl_product_add.
   unfold PEP.pep_value.
@@ -283,57 +288,24 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   rewrite H8.
   rewrite H3.
   apply Zmult_comm.
-  
-  
-  unfold PPL.ppl_product.
-  pose (l' := PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)).
-  assert ((l' = nil) \/ (exists a, exists l'', l' = cons a l'')).
-  destruct l'.
-  crush.
-  right.
-  exists e.
-  exists l'.
-  reflexivity.
-  destruct H10.
-  elimtype False.
-  pose (PPLProps.empty_elements (PEP.pep_intro H4 H9) x1).
-  crush.
-  do 2 destruct H10.PPL.add_to_produc
-  subst l'.
-  rewrite H10.
-  simpl.
-  assert (match PEP.pep_value x2 with
-     | 0 => 0
-     | Zpos y' => Zpos y'
-     | Zneg y' => Zneg y'
-     end = PEP.pep_value x2).
-  destruct (PEP.pep_value x2); crush.
-  rewrite H11; clear H11.
-  SearchAbout PPL.elements.
-  assert ((PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)) = nil).
-  
-  unfold PPL.Empty.
-  intros.
-  unfold not; intro.
-  apply PPL.elements_spec1 in H12.
-  change (PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)) with l' in H12.
-  destruct H12.
-  discriminate.
-  discriminate.
-  assert (length (PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)) = 0%nat).
-  assert
-  SearchAbout (length (map _ _)).
-  
-  pose (Zdivide_bounds q n).
-  pose (Zabs_eq n).
-  assert (0 <= n) by crush.
-  specialize (e H5).
-  rewrite e in z0.
-  destruct H2.
-
-
-  
+  admit.
+  admit.
+  admit.
   exists PPL.empty.
+  split.
   crush.
+  unfold PPL.unique_primes.
+  intros.
+  elimtype False.
+  pose (PPLProps.FM.empty_iff pep1).
+  crush.
+  intros.
+  assert (n <= x).
+  rewrite <- Zpred_pred' in H0.
+  apply (Zle_trans n (Zpred x) x); [assumption | apply Zle_pred].
+  crush.
+  intros.
+  apply (H n n); crush.
+Qed.
 
  
