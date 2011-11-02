@@ -16,11 +16,6 @@ Ltac destruct_div :=
     | [ |- (?a | ?b) \/ (?c | ?d) ] => destruct (Zdivide_dec a b); [ left; assumption | right ]
   end.
 
-Inductive prod_primes : Z -> Prop :=
-  | idprime : forall n, prime n -> prod_primes n
-  | recprime : forall n a b, (n = b * a /\ prod_primes a /\ prod_primes b) -> prod_primes n.
-
-Hint Constructors prod_primes.
 Hint Resolve prime_alt.
 Lemma left_not_or : forall P1 P2 : Prop,  (P1 \/ P2) -> (P1 -> False) -> P2. intuition. Qed.
 Lemma right_not_or : forall P1 P2 : Prop, (P1 \/ P2) ->(P2 -> False)  -> P1. intuition. Qed.
@@ -50,55 +45,6 @@ Qed.
 Hint Resolve not_prime_divisible.
 
 Hint Resolve Zdivide_Zdiv_eq.
-
-(* what a piece of shit... *)
-Theorem all_prod_primes : forall n, n > 1 -> prod_primes n.
-  assert (forall k n, n <= k -> n > 1 -> prod_primes n).
-  apply (Zind (fun k => (forall n, n <= k -> n > 1 -> prod_primes n))); crush.
-  rewrite <- Zsucc_succ' in H0.
-  destruct (prime_dec n).
-  crush.
-  assert (exists z, 1 < z < n /\ (z | n)).
-  apply not_prime_divisible; crush.
-  destruct H2.
-  destruct H2.
-  apply (@recprime n (Zabs x0) (n / (Zabs x0))); crush.
-  rewrite Zmult_comm.
-  apply Zdivide_Zdiv_eq.
-  assert (x0 <> 0).
-  intro.
-  subst.
-  assert (n | 0) by crush.
-  assert (n = 0 \/ n = -0) by (apply Zdivide_antisym; assumption).
-  crush.
-  assert (Zabs x0 <> 0).
-  pose (Zabs_eq_case x0 0); crush.
-  pose (Zabs_pos x0); crush.
-  apply Zdivide_Zabs_inv_l; assumption; crush.
-  rewrite Zabs_eq.
-  apply (H x0); crush.
-  apply (Zlt_le_trans x0 n (Zsucc x)) in H0; crush.
-  rewrite Zabs_eq.
-  assert (0 < n / x0 < n).
-  apply Zdivide_Zdiv_lt_pos; crush.
-  apply H.
-  crush.
-  assert (n / x0 <> 1).
-  intro.
-  assert (n = x0).
-  rewrite <- (Zmult_1_r x0).
-  rewrite <- H6.
-  apply Zdivide_Zdiv_eq; crush.
-  crush.
-  crush.
-  crush.
-  rewrite <- (Zpred_pred') in H0.
-  pose (Zle_pred x).
-  apply (Zle_trans n (Zpred x) x) in z; crush.
-  intros.
-  specialize (H (Zsucc n) n).
-  crush.
-Qed.
 
 (* this proof is a piece of shit. *)
 Theorem euclids_lemma : forall p a b, prime p -> (p | a * b) -> (p | a) \/ (p | b).
@@ -154,6 +100,7 @@ Theorem prime_divis : forall n, n > 1 -> exists p, prime p /\ (p | n).
 Qed.
 
 Require Import MSets.
+Require Import Equalities.
 
 Module PEP.
   Inductive prime_exp_pair := pep_intro : forall p e, prime p -> e >= 0 -> prime_exp_pair.
@@ -193,22 +140,82 @@ Module PEP.
   Qed.
 
   Definition pep_value (pep : t) : Z :=
-    let (p, e) := pep_to_pair pep in p ^ e.  
+    let (p, e) := pep_to_pair pep in p ^ e.
+
+  Definition pep_prime (pep : t) : Z :=
+    let (p, e) := pep_to_pair pep in p.
+
+  Definition pep_exp (pep : t) : Z :=
+    let (p, e) := pep_to_pair pep in e.
+
+  Lemma pep_exp_succ :
+    forall pep1 pep2, pep_prime pep1 = pep_prime pep2 -> pep_exp pep1 = Zsucc (pep_exp pep2) -> pep_value pep1 = (pep_prime pep1) * (pep_value pep2).
+    intros.
+    destruct pep1.
+    destruct pep2.
+    unfold pep_prime in *.
+    unfold pep_exp in *.
+    unfold pep_value.
+    simpl in *.
+    subst.
+    assert (Zsucc e0 = e0 + 1) by crush.
+    rewrite H.
+    rewrite Zpower_exp; crush.
+    unfold Zpower_pos.
+    crush.
+    ring.
+  Qed.
 End PEP.
+
+Hint Unfold PEP.pep_value PEP.pep_to_pair.
 
 Module PPL.
   Include MSetWeakList.Make PEP.
 
-  Axiom unique_first : forall s n, (is_empty s = true) \/ cardinal (filter (fun x : PEP.t => Zeq_bool (fst (PEP.pep_to_pair x)) n) s) = (S O).
+  Definition unique_primes (ppl : PPL.t) : Prop :=
+    forall pep1 pep2, In pep1 ppl -> In pep2 ppl -> PEP.pep_prime pep1 = PEP.pep_prime pep2 -> PEP.pep_value pep1 = PEP.pep_value pep2.
 
+  Definition add_to_product (pep : PEP.t) (product : Z) : Z :=
+    (PEP.pep_value pep) * product.
+  
   Definition ppl_product (ppl : PPL.t) : Z :=
-    fold_left Zmult (map PEP.pep_value (elements ppl)) 1.
+    fold add_to_product ppl 1.
 End PPL.
 
-Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n.
-  assert (forall k n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n).
-  apply (Zind (fun k => forall n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPassert (Zabs q = q).
-  L.ppl_product ppl = n)).
+Module PPLProps.
+  Include WPropertiesOn PEP PPL.
+
+  Lemma empty_elements : forall (pep : PEP.t) (ppl : PPL.t), PPL.elements (PPL.add pep ppl) <> nil.
+    unfold not.
+    intros.
+    apply elements_Empty in H.
+    unfold PPL.Empty in H.
+    specialize (H pep).
+    apply H.
+    apply PPL.add_spec.
+    crush.
+  Qed.
+
+  Hint Rewrite Zmult_assoc : cpdt.
+  
+  Lemma ppl_product_add : forall (pep : PEP.t) (ppl : PPL.t), ~ PPL.In pep ppl -> PPL.ppl_product (PPL.add pep ppl) = (PEP.pep_value pep) * (PPL.ppl_product ppl).
+    intros.
+    assert (Proper (eq==>eq==>eq) PPL.add_to_product) by crush.
+    assert (transpose eq PPL.add_to_product).
+    unfold transpose.
+    intros.
+    unfold PPL.add_to_product.
+    rewrite Zmult_assoc.
+    rewrite (Zmult_comm (PEP.pep_value x) (PEP.pep_value y)).
+    crush.
+    apply (fold_add eq_equivalence H0 H1).
+    apply H.
+  Qed.
+End PPLProps.
+
+Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n /\ PPL.unique_primes ppl.
+  assert (forall k n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n /\ PPL.unique_primes ppl).
+  apply (Zind (fun k => forall n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n /\ PPL.unique_primes ppl)).
   crush.
   intros.
   rewrite <- Zsucc_succ' in H0.
@@ -219,13 +226,114 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   destruct e.
   destruct H2.
   destruct H3.
-  destruct (H q).
-  assert (q | n).
+  assert (prime x0) by assumption.
+  destruct H2.
+  assert (n / x0 = q).
+  rewrite H3.
+  apply Z_div_mult.
   crush.
-  pose (Zdivide_bounds q n).
+  destruct (Z_le_lt_eq_dec q n).
+  assert (Zabs q = q).
+  rewrite <- H6.
+  apply Zabs_eq.
+  apply Zge_le.
+  apply Z_div_ge0.
+  crush.
+  crush.
+  assert (Zabs n = n) by (apply Zabs_eq; crush).
+  rewrite <- H7.
+  rewrite <- H8.
+  apply Zdivide_bounds.
+  crush.
+  crush.
+  assert (q <= x).
+  assert (q | n) by crush.
+  apply Zlt_succ_le.
+  apply (Zlt_le_trans q n (Zsucc x)); crush.
+  destruct (H q).
+  crush.
+  rewrite <- H6.
+  assert (0 < n / x0 < n) by (apply Zdivide_Zdiv_lt_pos; crush).
+  crush.
+  destruct H8.
+  destruct (classic (exists pep, PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
+  do 2 destruct H10.
+  pose x2.
+  destruct x2.
+  unfold PEP.pep_prime in H11.
+  unfold PEP.pep_to_pair in H11.
+  assert (Zsucc e0 >= 0) by omega.
+  pose (PEP.pep_intro p0 H12).
+  exists (PPL.add p1 (PPL.remove (PEP.pep_intro p0 z1) x1)).
+  rewrite PPLProps.ppl_product_add.
+  split.
+  rewrite (PEP.pep_exp_succ p1 e).
+  
 
+  assert (1 >= 0) by crush.
+  exists (PPL.add (PEP.pep_intro H4 H9) x1).
+  split.
+  rewrite PPLProps.ppl_product_add.
+  unfold PEP.pep_value.
+  unfold PEP.pep_to_pair.
+  unfold Zpower.
+  unfold Zpower_pos.
+  simpl.
+  rewrite Zmult_1_r.
+  rewrite H8.
+  rewrite H3.
+  apply Zmult_comm.
+  
+  
+  unfold PPL.ppl_product.
+  pose (l' := PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)).
+  assert ((l' = nil) \/ (exists a, exists l'', l' = cons a l'')).
+  destruct l'.
+  crush.
+  right.
+  exists e.
+  exists l'.
+  reflexivity.
+  destruct H10.
+  elimtype False.
+  pose (PPLProps.empty_elements (PEP.pep_intro H4 H9) x1).
+  crush.
+  do 2 destruct H10.PPL.add_to_produc
+  subst l'.
+  rewrite H10.
+  simpl.
+  assert (match PEP.pep_value x2 with
+     | 0 => 0
+     | Zpos y' => Zpos y'
+     | Zneg y' => Zneg y'
+     end = PEP.pep_value x2).
+  destruct (PEP.pep_value x2); crush.
+  rewrite H11; clear H11.
+  SearchAbout PPL.elements.
+  assert ((PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)) = nil).
+  
+  unfold PPL.Empty.
+  intros.
+  unfold not; intro.
+  apply PPL.elements_spec1 in H12.
+  change (PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)) with l' in H12.
+  destruct H12.
+  discriminate.
+  discriminate.
+  assert (length (PPL.elements (PPL.add (PEP.pep_intro H4 H9) x1)) = 0%nat).
+  assert
+  SearchAbout (length (map _ _)).
+  
+  pose (Zdivide_bounds q n).
+  pose (Zabs_eq n).
+  assert (0 <= n) by crush.
+  specialize (e H5).
+  rewrite e in z0.
+  destruct H2.
 
 
   
   exists PPL.empty.
   crush.
+
+ 
