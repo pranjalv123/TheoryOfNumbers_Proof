@@ -99,6 +99,55 @@ Theorem prime_divis : forall n, n > 1 -> exists p, prime p /\ (p | n).
   crush.
 Qed.
 
+Check Zind.
+
+Theorem Zind_ge0 : forall P : Z -> Prop, P 0 -> (forall n : Z, n >= 0 -> P n -> P (Zsucc n)) -> (forall n, n >= 0 -> P n).
+  intro.
+  intro.
+  intro.
+  assert (forall k x, x <= k -> 0 < x -> P x).
+  apply (Zind (fun k => forall x, x <= k -> 0 < x -> P x)).
+  crush.
+  intros.
+  rewrite <- Zsucc_succ' in H2.
+  destruct (Z_le_lt_eq_dec x0 (Zsucc x) H2).
+  apply Zlt_succ_le in z.
+  apply H1; assumption.
+  subst x0; apply H0.
+  omega.
+  apply Zlt_succ_le in H3.
+  destruct (Z_le_lt_eq_dec 0 x H3).
+  apply H1; crush.
+  crush.
+  intros.
+  rewrite <- Zpred_pred' in H2.
+  apply H1; try assumption.
+  pose (Zle_pred x); omega.
+  intros.
+  apply Zge_le in H2.
+  destruct (Z_le_lt_eq_dec 0 n H2).
+  apply (H1 n n); crush.
+  crush.
+Qed.
+
+Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; try omega.
+
+Lemma prime_power_div : forall p q e, prime p -> prime q -> e >= 0 -> (q | p ^ e) -> q = p.
+  do 5 intro.
+  apply (Zind_ge0 (fun e => (q | p ^ e) -> q = p)).
+  simpl_power.
+  intro.
+  destruct (Zdivide_1 q); try assumption; intros; destruct H0; omega.
+  intros.
+  unfold Zsucc in H3.
+  rewrite Zpower_exp in H3; try omega.
+  unfold Zpower at 2 in H3; unfold Zpower_pos in H3; simpl in H3.
+  rewrite Zmult_1_r in H3.
+  destruct (euclids_lemma _ _ H0 H3).
+  tauto.
+  apply prime_div_prime; assumption.
+Qed.
+
 Require Import MSets.
 Require Import Equalities.
 
@@ -197,20 +246,11 @@ Module PPL.
     fold add_to_product ppl 1.
 End PPL.
 
+Hint Unfold Zpower_pos.
+
 Module PPLProps.
   Include WPropertiesOn PEP PPL.
-
-  Lemma empty_elements : forall (pep : PEP.t) (ppl : PPL.t), PPL.elements (PPL.add pep ppl) <> nil.
-    unfold not.
-    intros.
-    apply elements_Empty in H.
-    unfold PPL.Empty in H.
-    specialize (H pep).
-    apply H.
-    apply PPL.add_spec.
-    crush.
-  Qed.
-
+  
   Hint Rewrite Zmult_assoc : cpdt.
 
   Lemma proper_atp : Proper (eq==>eq==>eq) PPL.add_to_product.
@@ -223,6 +263,15 @@ Module PPLProps.
     intros.
     ring.
   Qed.
+
+  Lemma ppl_product_empty : forall ppl, PPL.Empty ppl -> PPL.ppl_product ppl = 1.
+    intros.
+    unfold PPL.ppl_product.
+    rewrite PPL.fold_spec.
+    destruct (elements_Empty ppl).
+    rewrite (H0 H).
+    crush.
+  Qed.
   
   Lemma ppl_product_add : forall (pep : PEP.t) (ppl : PPL.t), ~ PPL.In pep ppl -> PPL.ppl_product (PPL.add pep ppl) = (PEP.pep_value pep) * (PPL.ppl_product ppl).
     intros.
@@ -234,6 +283,30 @@ Module PPLProps.
     unfold PPL.ppl_product.
     rewrite <- (remove_fold_1 eq_equivalence proper_atp transpose_atp 1 H).
     crush.
+  Qed.
+
+  Lemma exp_big : forall p, p > 1 -> forall e, e >= 0 -> p ^ e >= 1.
+    intros.
+    apply (Zind_ge0 (fun x => p ^ x >= 1)); crush.
+    change (Zsucc n) with (n + 1).
+    rewrite Zpower_exp; try omega.
+    rewrite <- Zmult_1_r.
+    apply Zmult_ge_compat; try omega.
+    simpl_power.
+  Qed.
+
+  Lemma ppl_product_big : forall ppl, PPL.ppl_product ppl >= 1.
+    intros.
+    unfold PPL.ppl_product.
+    apply fold_rec; intros.
+    omega.
+    unfold PPL.add_to_product.
+    destruct x.
+    PEP.simpl_peps.
+    rewrite <- (Zmult_1_r 1).
+    apply (Zmult_ge_compat); try omega.
+    destruct p0.
+    apply exp_big; omega.
   Qed.
 End PPLProps.
 
@@ -394,5 +467,51 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.ppl_product pp
   apply (H n n); crush.
 Qed.
 
-Theorem unique_ppl : forall ppl1 ppl2, PPL.ppl_product ppl1 = PPL.ppl_product ppl2 -> PPL.Equal ppl1 ppl2.
+Ltac destruct_keep hyp := let name := fresh in pose (name := hyp); destruct hyp.
+
+Lemma euclids_ppl : forall ppl n m, PPL.ppl_product ppl = n -> (m | n) -> prime m -> exists pep, PPL.In pep ppl /\ PEP.pep_prime pep = m.
+  apply (@PPLProps.set_induction_bis (fun ppl => forall n m, PPL.ppl_product ppl = n -> (m | n) -> prime m -> exists pep, PPL.In pep ppl /\ PEP.pep_prime pep = m)).
   intros.
+  destruct (H0 n m); try assumption.
+  rewrite <- H1.
+  unfold PPL.ppl_product.
+  apply PPLProps.fold_equal; crush.
+  apply PPLProps.transpose_atp.
+  exists x.
+  destruct (H x).
+  crush.
+  intros.
+  destruct H1.
+  elimtype False.
+  rewrite (@PPLProps.ppl_product_empty PPL.empty) in H.
+  assert (Zabs m <= Zabs n) by (apply Zdivide_bounds; crush).
+  rewrite (Zabs_eq m) in H3; crush.
+  apply PPL.empty_spec.
+  intros.
+  rewrite PPLProps.ppl_product_add in H1; try assumption.
+  subst n.
+  apply euclids_lemma in H2; try assumption.
+  destruct H2.
+  destruct x.
+  unfold PEP.pep_value in H1.
+  unfold PEP.pep_to_pair in H1.
+  pose z.
+  apply Zge_le in z0.
+  apply Z_le_lt_eq_dec in z0; destruct z0.
+  assert (m = p).
+  apply (@prime_power_div p m e); try assumption.
+  exists (PEP.pep_intro p0 z).
+  crush.
+  elimtype False.
+  subst e; unfold Zpower in H1; unfold Zpower_pos in H1; simpl in H1.
+  destruct (Zdivide_1 _ H1); destruct H3; omega.
+  destruct (H0 (PPL.ppl_product s) m); crush.
+  exists x0; crush.
+Qed.
+
+Theorem unique_ppl : forall n ppl1 ppl2, PPL.ppl_product ppl1 = n -> PPL.ppl_product ppl2 = n -> PPL.Equal ppl1 ppl2.
+  unfold PPL.Equal.
+  intros.
+  split.
+  intro.
+  
