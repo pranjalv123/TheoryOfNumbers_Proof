@@ -3,36 +3,21 @@ Require Import List.
 Require Import ZArith.
 Require Import Znumtheory.
 Require Import ProofIrrelevance.
-(*Require Import Classical.*)
+Require Import MSets.
+Require Import Equalities.
 
 Set Implicit Arguments.
 
-Ltac destruct_div :=
-  intros;
-  repeat match goal with
-           | [ |- (?m | ?n) ] => constructor
-           | [ H : (?m | ?n) |- _ ] => destruct H
-         end;
-  match goal with
-    | [ |- (?a | ?b) \/ (?c | ?d) ] => destruct (Zdivide_dec a b); [ left; assumption | right ]
+(* tactics *)
+Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; fold Zpower_pos; try omega.
+Ltac spec hyp arg := specialize arg; simpl in hyp.
+Ltac make_subgoals impl :=
+  match type of impl with
+    | ?a -> ?b => assert b; try apply impl; make_subgoals b
+    | _ => idtac
   end.
 
-Hint Resolve prime_alt.
-Lemma left_not_or : forall P1 P2 : Prop,  (P1 \/ P2) -> (P1 -> False) -> P2. intuition. Qed.
-Lemma right_not_or : forall P1 P2 : Prop, (P1 \/ P2) -> (P2 -> False)  -> P1. intuition. Qed.
-Hint Extern 1 => match goal with
-                   (*| [H:((_ -> False) -> False)|- _] => (apply NNPP in H )*)
-                   (*| [H: (_ -> _ -> _ ) -> _ |- _] => apply imply_to_and in H*)
-                   | [H: ~ (_) |- _ ] => unfold not in H
-                   | [H: _ /\ _ |- _ ] => destruct H
-                   | [H: exists _, _ |- _ ] => destruct H
-(*                   | [H: (forall _, _) -> False |- _ ] => apply not_all_ex_not in H*)
-                   | [H: _ \/ _ |- _ ] => apply left_not_or in H; intuition
-                   | [H: _ \/ _ |- _ ] => apply right_not_or in H; intuition
-                 end.
-(*Hint Extern 1 => match goal with
-                   | [H: (_ /\ _) -> False |- _] => apply not_and_or in H
-                 end.*)
+Hint Immediate proof_irrelevance.
 
 Theorem prime_divis : forall n, n > 1 -> exists p, prime p /\ (p | n).
   assert (forall k n, n <= k -> n > 1 -> exists p, prime p /\ (p | n)).
@@ -105,8 +90,6 @@ Theorem Zind_ge_m : forall (P : Z -> Prop) (m : Z), P m -> (forall n : Z, n >= m
   assumption.
 Qed.
 
-Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; try omega.
-
 Lemma power_div : forall p e, p > 1 -> e >= 1 -> (p | p ^ e).
   intros.
   rewrite (Zsucc_pred e) in *.
@@ -154,9 +137,6 @@ Lemma exp_cancel : forall p e1 e2 m n, e2 >= 0 -> e1 > e2 -> p > 1 -> p ^ e1 * m
   assumption.
 Qed.
 
-Require Import MSets.
-Require Import Equalities.
-
 Module PEP.
   Inductive prime_exp_pair := pep_intro : forall p e, prime p -> e >= 1 -> prime_exp_pair.
 
@@ -180,18 +160,11 @@ Module PEP.
     destruct x.
     destruct y.
     destruct (Z_eq_dec p p1);
-      destruct (Z_eq_dec e e0).
-    left.
+      destruct (Z_eq_dec e e0);
+        [ left | right | right | right ];
+          try (intro; inversion H; tauto).
     subst.
-    assert (p0 = p2) by (apply proof_irrelevance).
-    assert (z0 = z) by (apply proof_irrelevance).
-    crush.
-    right; crush.
-    right.
-    intro.
-    inversion H.
-    crush.
-    right; crush.
+    f_equal; auto.
   Qed.
 
   Definition pep_value (pep : t) : Z :=
@@ -203,7 +176,7 @@ Module PEP.
   Definition pep_exp (pep : t) : Z :=
     let (p, e) := pep_to_pair pep in e.
 
-  Ltac simpl_peps := unfold PEP.pep_prime in *; unfold PEP.pep_exp in *; unfold PEP.pep_value in *; unfold PEP.pep_to_pair in *; simpl in *; fold PEP.pep_prime in *; fold PEP.pep_exp in *; fold PEP.pep_value in *.
+  Ltac simpl_peps := unfold PEP.pep_prime in *; unfold PEP.pep_exp in *; unfold PEP.pep_value in *; unfold PEP.pep_to_pair in *; simpl in *; fold PEP.pep_prime in *; fold PEP.pep_exp in *; fold PEP.pep_value in *; try reflexivity.
   Ltac simpl_peps_in hyp := unfold PEP.pep_prime in hyp; unfold PEP.pep_exp in hyp; unfold PEP.pep_value in hyp; unfold PEP.pep_to_pair in hyp; simpl in hyp; fold PEP.pep_prime in hyp; fold PEP.pep_exp in hyp; fold PEP.pep_value in hyp.
 
   Lemma pep_exp_succ :
@@ -214,9 +187,8 @@ Module PEP.
     simpl_peps.
     subst.
     unfold Zsucc.
-    rewrite Zpower_exp; crush.
-    unfold Zpower_pos.
-    crush.
+    rewrite Zpower_exp; try omega.
+    simpl_power.
     ring.
   Qed.
 
@@ -225,15 +197,13 @@ Module PEP.
     destruct pep1.
     destruct pep2.
     simpl_peps.
-    inversion H; clear H.
+    inversion H.
     subst.
-    rewrite (proof_irrelevance _ p0 p2).
-    rewrite (proof_irrelevance _ z0 z).
-    reflexivity.
+    f_equal; auto. 
   Qed.
 End PEP.
 
-Hint Unfold PEP.pep_value PEP.pep_to_pair.
+Hint Unfold PEP.pep_value PEP.pep_to_pair PEP.pep_prime PEP.pep_exp.
 
 Module PPL.
   Include MSetWeakList.Make PEP.
@@ -365,6 +335,9 @@ Module PPLProps.
     crush.
     apply (H0 x0); assumption.
   Qed.
+
+  Hint Immediate proper_atp transpose_atp ppl_product_big.
+  Hint Resolve ppl_product_empty.
 End PPLProps.
 
 Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod ppl n.
@@ -400,132 +373,100 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod pp
   rewrite <- H8.
   rewrite <- H9.
   apply Zdivide_bounds; crush.
-  assert (q <= x).
   assert (q | n0) by crush.
-  apply Zlt_succ_le.
-  apply (Zlt_le_trans q n0 (Zsucc x)); try omega.
   destruct (H0 q); try omega.
   assert (0 < n0 / x < n0) by (apply Zdivide_Zdiv_lt_pos; crush).
   omega.
   destruct H9.
-  destruct (classic (exists pep, PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
-  do 2 destruct H10.
-  pose x2.
-  destruct x2.
-  unfold PEP.pep_prime in H11.
-  unfold PEP.pep_to_pair in H11.
+  destruct (PPLProps.exists_dec (fun pep => PEP.pep_prime pep = x) x0).
+  intros; repeat decide equality.
+  do 2 destruct H9.
+  destruct x1.
+  PEP.simpl_peps_in H9.
   assert (Zsucc e0 >= 1) by omega.
-  pose (PEP.pep_intro p0 H12).
-  exists (PPL.add p1 (PPL.remove (PEP.pep_intro p0 z1) x1)).
-  rewrite PPLProps.ppl_product_add.
+  pose (PEP.pep_intro p0 H11).
+  exists (PPL.add p1 (PPL.remove (PEP.pep_intro p0 z1) x0)).
   split.
-  rewrite (PEP.pep_exp_succ p1 e).
-  rewrite H3.
-  rewrite <- H8.
-  rewrite (PPLProps.ppl_product_remove H10).
-  PEP.simpl_peps.
-  subst x0.
-  ring.
-  PEP.simpl_peps; crush.
-  PEP.simpl_peps; crush.
   unfold PPL.unique_primes in *; intros.
-  apply PPL.add_spec in H13; apply PPL.add_spec in H14; destruct H13; destruct H14.
+  apply PPL.add_spec in H12; apply PPL.add_spec in H13; destruct H12; destruct H13.
   crush.
-  apply PPL.remove_spec in H14; destruct H14.
-  specialize (H9 _ _ H10 H14).
+  apply PPL.remove_spec in H13; destruct H13.
+  specialize (u _ _ H9 H13).
   elimtype False.
-  apply H16.
+  apply H15.
   symmetry.
-  apply H9.
-  rewrite <- H15.
+  apply u.
+  rewrite <- H14.
   subst pep1 p1.
   PEP.simpl_peps; crush.
-  apply PPL.remove_spec in H13; destruct H13.
-  specialize (H9 _ _ H10 H13).
+  apply PPL.remove_spec in H12; destruct H12.
+  specialize (u _ _ H9 H12).
   elimtype False.
-  apply H16.
-  rewrite H9.
+  apply H15.
+  rewrite u.
   reflexivity.
-  rewrite H15.
+  rewrite H14.
   subst pep2 p1.
   PEP.simpl_peps; crush.
-  apply PPL.remove_spec in H14; destruct H14.
   apply PPL.remove_spec in H13; destruct H13.
-  apply H9; try assumption.
+  apply PPL.remove_spec in H12; destruct H12.
+  apply u; try assumption.
+  rewrite PPLProps.ppl_product_add.
+  rewrite (PEP.pep_exp_succ p1 (PEP.pep_intro p0 z1)).
+  rewrite <- Zmult_assoc.
+  rewrite <- (PPLProps.ppl_product_remove H9).
+  PEP.simpl_peps.
+  crush.
+  PEP.simpl_peps; crush.
+  PEP.simpl_peps; crush.
   intro.
-  apply PPL.remove_spec in H13; destruct H13.
-  apply H14.
+  apply PPL.remove_spec in H12; destruct H12.
+  apply H13.
   apply PEP.pep_pair_sufficient.
   PEP.simpl_peps; crush.
   assert (1 >= 1) by omega.
-  exists (PPL.add (PEP.pep_intro H2 H11) x1).
+  exists (PPL.add (PEP.pep_intro H3 H10) x0).
   split.
-  rewrite PPLProps.ppl_product_add.
-  PEP.simpl_peps.
-  unfold Zpower.
-  unfold Zpower_pos.
-  simpl.
-  rewrite Zmult_1_r.
-  rewrite H8.
-  rewrite H3.
-  apply Zmult_comm.
-  pose (@not_ex_all_not   rewrite <- H6PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
-  simpl in n0.
-  specialize (n0 H10 (PEP.pep_intro H2 H11)).
-  apply not_and_or in n0.
-  destruct n0; crush.
   unfold PPL.unique_primes in *.
   intros.
-  apply PPL.add_spec in H13.
+  apply PPL.add_spec in H11.
   apply PPL.add_spec in H12.
-  pose (@not_ex_all_not PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
-  simpl in n0.
-  specialize (n0 H10).
-  destruct H12; destruct H13; crush.
-  specialize (n0 pep2).
-  elimtype False.
-  apply n0.
-  split; try assumption.
-  unfold PEP.pep_prime at 1 in H14.
+  destruct H11; destruct H12; try (subst pep1 pep2); intuition; elimtype False.
+  spec H9 (H9 pep2).
   subst pep1.
-  simpl in H14.
-  crush.
-  specialize (n0 pep1).
-  elimtype False.
-  apply n0.
-  split; try assumption.
-  unfold PEP.pep_prime at 2 in H14.
+  auto with zarith.
+  spec H9 (H9 pep1).
   subst pep2.
-  simpl in H14.
-  assumption. (* repetitive *)
-  subst n.
+  auto with zarith.
+  subst n0.
+  rewrite PPLProps.ppl_product_add.
+  PEP.simpl_peps.
+  simpl_power.
+  rewrite Zmult_1_r.
+  rewrite e.
+  apply Zmult_comm.
+  intro.
+  apply (H9 _ H4).
+  PEP.simpl_peps.
   elimtype False.
-  eapply Zlt_irrefl.
-  instantiate (1 := q * x0).
+  subst n0.
+  apply (@Zlt_irrefl (q * x)).
   rewrite <- e at 1.
   rewrite <- Zmult_1_r at 1.
   apply Zmult_lt_compat_l; omega.
   exists PPL.empty.
   split.
-  crush.
   unfold PPL.unique_primes.
   intros.
   elimtype False.
   pose (PPLProps.FM.empty_iff pep1).
+  tauto.
   crush.
   intros.
-  assert (n <= x).
-  rewrite <- Zpred_pred' in H0.
-  apply (Zle_trans n (Zpred x) x); [assumption | apply Zle_pred].
-  crush.
-  intros.
-  destruct (H n n); try omega.
-  destruct H1.
-  exists x.
-  apply (PPL.up_intro H2 H1).
+  subst P; simpl in H.
+  specialize (H _ H0 _ H0).
+  apply H; omega.
 Qed.
-
-Ltac destruct_keep hyp := let name := fresh in pose (name := hyp); destruct hyp.
 
 Lemma euclids_ppl : forall ppl n m, PPL.ppl_product ppl = n -> (m | n) -> prime m -> exists pep, PPL.In pep ppl /\ PEP.pep_prime pep = m.
   apply (@PPLProps.set_induction_bis (fun ppl => forall n m, PPL.ppl_product ppl = n -> (m | n) -> prime m -> exists pep, PPL.In pep ppl /\ PEP.pep_prime pep = m)).
@@ -534,7 +475,6 @@ Lemma euclids_ppl : forall ppl n m, PPL.ppl_product ppl = n -> (m | n) -> prime 
   rewrite <- H1.
   unfold PPL.ppl_product.
   apply PPLProps.fold_equal; crush.
-  apply PPLProps.transpose_atp.
   exists x.
   destruct (H x).
   crush.
@@ -559,17 +499,6 @@ Lemma euclids_ppl : forall ppl n m, PPL.ppl_product ppl = n -> (m | n) -> prime 
   destruct (H0 (PPL.ppl_product s) m); crush.
   exists x0; crush.
 Qed.
-
-Ltac classical_contradiction :=
-  match goal with
-    | [ |- ?g ] => destruct (classic g); [ assumption | elimtype False ]
-  end.
-
-Ltac make_subgoals impl :=
-  match type of impl with
-    | ?a -> ?b => assert b; try apply impl; make_subgoals b
-    | _ => idtac
-  end.
 
 Theorem fundamental_theorem_of_arithmetic : forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_prod ppl2 n -> PPL.Equal ppl1 ppl2.
   unfold PPL.Equal.
@@ -635,5 +564,3 @@ Theorem fundamental_theorem_of_arithmetic : forall n ppl1 ppl2, PPL.unique_prod 
   assumption.
   intros; split; eauto.
 Qed.
-
-Print Assumptions unique_ppl.
