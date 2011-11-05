@@ -2,7 +2,8 @@ Require Import CpdtTactics.
 Require Import List.
 Require Import ZArith.
 Require Import Znumtheory.
-Require Import Classical.
+Require Import ProofIrrelevance.
+(*Require Import Classical.*)
 
 Set Implicit Arguments.
 
@@ -18,57 +19,20 @@ Ltac destruct_div :=
 
 Hint Resolve prime_alt.
 Lemma left_not_or : forall P1 P2 : Prop,  (P1 \/ P2) -> (P1 -> False) -> P2. intuition. Qed.
-Lemma right_not_or : forall P1 P2 : Prop, (P1 \/ P2) ->(P2 -> False)  -> P1. intuition. Qed.
+Lemma right_not_or : forall P1 P2 : Prop, (P1 \/ P2) -> (P2 -> False)  -> P1. intuition. Qed.
 Hint Extern 1 => match goal with
-                   | [H:((_ -> False) -> False)|- _] => (apply NNPP in H )
-                   | [H: (_ -> _ -> _ ) -> _ |- _] => apply imply_to_and in H
+                   (*| [H:((_ -> False) -> False)|- _] => (apply NNPP in H )*)
+                   (*| [H: (_ -> _ -> _ ) -> _ |- _] => apply imply_to_and in H*)
                    | [H: ~ (_) |- _ ] => unfold not in H
-                   | [H: _ /\ _ |- _ ] => decompose [and] H; clear H
+                   | [H: _ /\ _ |- _ ] => destruct H
                    | [H: exists _, _ |- _ ] => destruct H
-                   | [H: (forall _, _) -> False |- _ ] => apply not_all_ex_not in H
+(*                   | [H: (forall _, _) -> False |- _ ] => apply not_all_ex_not in H*)
                    | [H: _ \/ _ |- _ ] => apply left_not_or in H; intuition
                    | [H: _ \/ _ |- _ ] => apply right_not_or in H; intuition
                  end.
-Hint Extern 1 => match goal with
+(*Hint Extern 1 => match goal with
                    | [H: (_ /\ _) -> False |- _] => apply not_and_or in H
-                 end.
-
-Lemma not_prime_divisible : forall z, z > 1 -> ~ (prime z) -> exists x, 1 < x < z /\ (x | z).
-  intros.
-  assert (~ prime' z);
-  destruct (prime_alt z);
-  intuition;
-  unfold prime' in H1.
-  eauto 15.
-Qed.
-
-Hint Resolve not_prime_divisible.
-
-Hint Resolve Zdivide_Zdiv_eq.
-
-(* this proof is a piece of shit. *)
-Theorem euclids_lemma : forall p a b, prime p -> (p | a * b) -> (p | a) \/ (p | b).
-  destruct_div.
-  assert (rel_prime p a).
-  apply prime_rel_prime; assumption.
-  apply rel_prime_bezout in H1.
-  destruct H1.
-  assert (u * p * b + v * a * b = b).
-  rewrite <- (Zmult_plus_distr_l).
-  rewrite H1.
-  apply Zmult_1_l.
-  assert (b = (u * b + v * q) * p).
-  rewrite <- (Zmult_assoc v a b) in H2.
-  rewrite H0 in H2.
-  rewrite (Zmult_assoc v q p) in H2.
-  rewrite <- (Zmult_assoc u p b) in H2.
-  rewrite (Zmult_comm p b) in H2.
-  rewrite (Zmult_assoc) in H2.
-  rewrite <- (Zmult_plus_distr_l) in H2.
-  auto.
-  pose (Zdivide_intro p b (u * b + v * q)).
-  auto.
-Qed.
+                 end.*)
 
 Theorem prime_divis : forall n, n > 1 -> exists p, prime p /\ (p | n).
   assert (forall k n, n <= k -> n > 1 -> exists p, prime p /\ (p | n)).
@@ -77,31 +41,28 @@ Theorem prime_divis : forall n, n > 1 -> exists p, prime p /\ (p | n).
   crush.
   destruct (prime_dec n).
   exists n; crush.
-  pose (not_prime_divisible H1 n0).
-  destruct e.
+  assert (1 < n) by omega.
+  destruct (not_prime_divide _ H2 n0).
   specialize (H x0).
   rewrite <- Zsucc_succ' in H0.
-  destruct H2.
+  destruct H3.
   assert (exists p : Z, prime p /\ (p | x0)) by (apply H; crush).
-  destruct H4.
-  destruct H4.
+  do 2 destruct H5.
   exists x1.
-  crush.
+  split; try assumption.
   eapply Zdivide_trans; eauto.
   intros.
   apply H.
   rewrite <- Zpred_pred' in H0.
   pose (Zle_pred x).
-  crush.
+  omega.
   assumption.
   intros.
   specialize (H n n).
   crush.
 Qed.
 
-Check Zind.
-
-Theorem Zind_ge0 : forall P : Z -> Prop, P 0 -> (forall n : Z, n >= 0 -> P n -> P (Zsucc n)) -> (forall n, n >= 0 -> P n).
+Theorem Zind_ge0 : forall (P : Z -> Prop), P 0 -> (forall n : Z, n >= 0 -> P n -> P (Zsucc n)) -> (forall n, n >= 0 -> P n).
   intro.
   intro.
   intro.
@@ -130,6 +91,20 @@ Theorem Zind_ge0 : forall P : Z -> Prop, P 0 -> (forall n : Z, n >= 0 -> P n -> 
   crush.
 Qed.
 
+Theorem Zind_ge_m : forall (P : Z -> Prop) (m : Z), P m -> (forall n : Z, n >= m -> P n -> P (Zsucc n)) -> (forall n, n >= m -> P n).
+  intros.
+  assert (n - m >= 0) by omega.
+  pose (Q := fun k => P (k + m)).
+  assert (Q (n - m)).
+  apply Zind_ge0; unfold Q; simpl; crush.
+  rewrite Zplus_succ_l.
+  apply H0; try omega; try assumption.
+  unfold Q in H3.
+  rewrite Zplus_comm in H3.
+  rewrite Zplus_minus in H3.
+  assumption.
+Qed.
+
 Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; try omega.
 
 Lemma power_div : forall p e, p > 1 -> e >= 1 -> (p | p ^ e).
@@ -153,7 +128,7 @@ Lemma prime_power_div : forall p q e, prime p -> prime q -> e >= 0 -> (q | p ^ e
   rewrite Zpower_exp in H3; try omega.
   unfold Zpower at 2 in H3; unfold Zpower_pos in H3; simpl in H3.
   rewrite Zmult_1_r in H3.
-  destruct (euclids_lemma _ _ H0 H3).
+  destruct (prime_mult _ H0 _ _ H3).
   tauto.
   apply prime_div_prime; assumption.
 Qed.
@@ -256,7 +231,6 @@ Module PEP.
     rewrite (proof_irrelevance _ z0 z).
     reflexivity.
   Qed.
-    
 End PEP.
 
 Hint Unfold PEP.pep_value PEP.pep_to_pair.
@@ -356,44 +330,84 @@ Module PPLProps.
     simpl_power.
     crush.
   Qed.
-    
+  
+  Lemma exists_dec : forall (P : PEP.t -> Prop) ppl, (forall x, {P x} + {~ P x}) -> PPL.Exists P ppl \/ PPL.For_all (fun x => ~ (P x)) ppl.
+    intros.
+    apply (@set_induction ((fun ppl => PPL.Exists P ppl \/ PPL.For_all (fun x => ~ (P x)) ppl) : PPL.t -> Type)).
+    intros.
+    right.
+    unfold PPL.For_all.
+    intros.
+    elimtype False.
+    unfold PPL.Empty in H0.
+    apply (H0 x).
+    assumption.
+    intros.
+    destruct (H2 x).
+    assert (PPL.In x s') by tauto; clear H3 H4.
+    destruct H0.
+    destruct H0.
+    destruct H0.
+    left.
+    exists x0.
+    split; [ | assumption ].
+    destruct (H2 x0).
+    tauto.
+    destruct (H x).
+    left.
+    exists x.
+    split; assumption.
+    right.
+    do 3 intro.
+    unfold PPL.For_all in H0.
+    destruct (H2 x0).
+    destruct (H6 H3).
+    crush.
+    apply (H0 x0); assumption.
+  Qed.
 End PPLProps.
 
 Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod ppl n.
-  assert (forall k n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n /\ PPL.unique_primes ppl).
-  apply (Zind (fun k => forall n, n <= k -> n >= 1 -> exists ppl : PPL.t, PPL.ppl_product ppl = n /\ PPL.unique_primes ppl)).
-  crush.
+  set (P := fun k => forall n, n >= 1 -> n <= k -> exists ppl : PPL.t, PPL.unique_prod ppl n).
+  assert (forall k, k >= 1 -> P k).
+  apply (Zind_ge_m P); unfold P.
   intros.
-  rewrite <- Zsucc_succ' in H0.
-  destruct (Z_le_lt_eq_dec 1 n); try omega.
+  exists PPL.empty.
+  split.
+  unfold PPL.unique_primes.
+  intros.
+  destruct (PPLProps.FM.empty_iff pep1).
+  tauto.
+  unfold PPL.ppl_product.
+  rewrite PPLProps.fold_empty; omega.
+  intros.
+  destruct (Z_le_lt_eq_dec 1 n0); try omega.
   apply Zlt_gt in z.
   destruct (prime_divis z).
-  destruct H2.
   destruct H3.
-  pose H2.
+  pose H3.
   destruct p.
-  assert (n / x0 = q).
-  rewrite H3.
+  destruct H4.
+  assert (n0 / x = q).
+  rewrite H4.
   apply Z_div_mult; try omega.
-  destruct (Z_le_lt_eq_dec q n).
+  destruct (Z_le_lt_eq_dec q n0).
   assert (Zabs q = q).
   apply Zabs_eq; try omega.
-  rewrite <- H6.
-  apply Z_div_pos; omega.
-  assert (Zabs n = n) by (apply Zabs_eq; omega).
   rewrite <- H7.
+  apply Z_div_pos; omega.
+  assert (Zabs n0 = n0) by (apply Zabs_eq; omega).
   rewrite <- H8.
+  rewrite <- H9.
   apply Zdivide_bounds; crush.
   assert (q <= x).
-  assert (q | n) by crush.
+  assert (q | n0) by crush.
   apply Zlt_succ_le.
-  apply (Zlt_le_trans q n (Zsucc x)); crush.
-  destruct (H q).
-  crush.
-  rewrite <- H6.
-  assert (0 < n / x0 < n) by (apply Zdivide_Zdiv_lt_pos; crush).
-  crush.
-  destruct H8.
+  apply (Zlt_le_trans q n0 (Zsucc x)); try omega.
+  destruct (H0 q); try omega.
+  assert (0 < n0 / x < n0) by (apply Zdivide_Zdiv_lt_pos; crush).
+  omega.
+  destruct H9.
   destruct (classic (exists pep, PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
   do 2 destruct H10.
   pose x2.
@@ -455,7 +469,7 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod pp
   rewrite H8.
   rewrite H3.
   apply Zmult_comm.
-  pose (@not_ex_all_not PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
+  pose (@not_ex_all_not   rewrite <- H6PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
   simpl in n0.
   specialize (n0 H10 (PEP.pep_intro H2 H11)).
   apply not_and_or in n0.
@@ -534,7 +548,7 @@ Lemma euclids_ppl : forall ppl n m, PPL.ppl_product ppl = n -> (m | n) -> prime 
   intros.
   rewrite PPLProps.ppl_product_add in H1; try assumption.
   subst n.
-  apply euclids_lemma in H2; try assumption.
+  apply prime_mult in H2; try assumption.
   destruct H2.
   destruct x.
   unfold PEP.pep_value in H1.
@@ -557,7 +571,7 @@ Ltac make_subgoals impl :=
     | _ => idtac
   end.
 
-Theorem unique_ppl : forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_prod ppl2 n -> PPL.Equal ppl1 ppl2.
+Theorem fundamental_theorem_of_arithmetic : forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_prod ppl2 n -> PPL.Equal ppl1 ppl2.
   unfold PPL.Equal.
   assert (forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_prod ppl2 n -> forall a, PPL.In a ppl1 -> PPL.In a ppl2).
   intros.
@@ -621,3 +635,5 @@ Theorem unique_ppl : forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_pr
   assumption.
   intros; split; eauto.
 Qed.
+
+Print Assumptions unique_ppl.
