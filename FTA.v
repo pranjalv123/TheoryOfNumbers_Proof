@@ -132,6 +132,16 @@ Qed.
 
 Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; try omega.
 
+Lemma power_div : forall p e, p > 1 -> e >= 1 -> (p | p ^ e).
+  intros.
+  rewrite (Zsucc_pred e) in *.
+  change (Zsucc _) with (Zpred e + 1).
+  rewrite Zpower_exp; try omega.
+  simpl_power.
+  apply Zdivide_mult_r.
+  crush.
+Qed.
+
 Lemma prime_power_div : forall p q e, prime p -> prime q -> e >= 0 -> (q | p ^ e) -> q = p.
   do 5 intro.
   apply (Zind_ge0 (fun e => (q | p ^ e) -> q = p)).
@@ -146,6 +156,27 @@ Lemma prime_power_div : forall p q e, prime p -> prime q -> e >= 0 -> (q | p ^ e
   destruct (euclids_lemma _ _ H0 H3).
   tauto.
   apply prime_div_prime; assumption.
+Qed.
+  
+Lemma exp_big : forall p, p > 1 -> forall e, e >= 0 -> p ^ e >= 1.
+  intros.
+  apply (Zind_ge0 (fun x => p ^ x >= 1)); crush.
+  change (Zsucc n) with (n + 1).
+  rewrite Zpower_exp; try omega.
+  rewrite <- Zmult_1_r.
+  apply Zmult_ge_compat; try omega.
+  simpl_power.
+Qed.
+
+Lemma exp_cancel : forall p e1 e2 m n, e2 >= 0 -> e1 > e2 -> p > 1 -> p ^ e1 * m = p ^ e2 * n -> p ^ (e1 - e2) * m = n.
+  intros.
+  apply (Zmult_reg_l) with (p := p ^ e2).
+  pose (exp_big H1 H).
+  omega.
+  ring_simplify.
+  rewrite <- (Zpower_exp); try omega.
+  rewrite Zplus_minus.
+  assumption.
 Qed.
 
 Require Import MSets.
@@ -285,16 +316,6 @@ Module PPLProps.
     crush.
   Qed.
 
-  Lemma exp_big : forall p, p > 1 -> forall e, e >= 0 -> p ^ e >= 1.
-    intros.
-    apply (Zind_ge0 (fun x => p ^ x >= 1)); crush.
-    change (Zsucc n) with (n + 1).
-    rewrite Zpower_exp; try omega.
-    rewrite <- Zmult_1_r.
-    apply Zmult_ge_compat; try omega.
-    simpl_power.
-  Qed.
-
   Lemma ppl_product_big : forall ppl, PPL.ppl_product ppl >= 1.
     intros.
     unfold PPL.ppl_product.
@@ -344,33 +365,25 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod pp
   crush.
   intros.
   rewrite <- Zsucc_succ' in H0.
-  destruct (Z_le_lt_eq_dec 1 n).
-  crush.
+  destruct (Z_le_lt_eq_dec 1 n); try omega.
   apply Zlt_gt in z.
-  pose (prime_divis z).
-  destruct e.
+  destruct (prime_divis z).
   destruct H2.
   destruct H3.
-  assert (prime x0) by assumption.
-  destruct H2.
+  pose H2.
+  destruct p.
   assert (n / x0 = q).
   rewrite H3.
-  apply Z_div_mult.
-  crush.
+  apply Z_div_mult; try omega.
   destruct (Z_le_lt_eq_dec q n).
   assert (Zabs q = q).
+  apply Zabs_eq; try omega.
   rewrite <- H6.
-  apply Zabs_eq.
-  apply Zge_le.
-  apply Z_div_ge0.
-  crush.
-  crush.
-  assert (Zabs n = n) by (apply Zabs_eq; crush).
+  apply Z_div_pos; omega.
+  assert (Zabs n = n) by (apply Zabs_eq; omega).
   rewrite <- H7.
   rewrite <- H8.
-  apply Zdivide_bounds.
-  crush.
-  crush.
+  apply Zdivide_bounds; crush.
   assert (q <= x).
   assert (q | n) by crush.
   apply Zlt_succ_le.
@@ -408,8 +421,8 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod pp
   specialize (H9 _ _ H10 H14).
   elimtype False.
   apply H16.
-  rewrite H9.
-  reflexivity.
+  symmetry.
+  apply H9.
   rewrite <- H15.
   subst pep1 p1.
   PEP.simpl_peps; crush.
@@ -431,7 +444,7 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod pp
   apply PEP.pep_pair_sufficient.
   PEP.simpl_peps; crush.
   assert (1 >= 1) by omega.
-  exists (PPL.add (PEP.pep_intro H4 H11) x1).
+  exists (PPL.add (PEP.pep_intro H2 H11) x1).
   split.
   rewrite PPLProps.ppl_product_add.
   PEP.simpl_peps.
@@ -444,7 +457,7 @@ Theorem all_ppl : forall n : Z, n >= 1 -> exists ppl : PPL.t, PPL.unique_prod pp
   apply Zmult_comm.
   pose (@not_ex_all_not PEP.t (fun pep => PPL.In pep x1 /\ PEP.pep_prime pep = x0)).
   simpl in n0.
-  specialize (n0 H10 (PEP.pep_intro H4 H11)).
+  specialize (n0 H10 (PEP.pep_intro H2 H11)).
   apply not_and_or in n0.
   destruct n0; crush.
   unfold PPL.unique_primes in *.
@@ -538,6 +551,12 @@ Ltac classical_contradiction :=
     | [ |- ?g ] => destruct (classic g); [ assumption | elimtype False ]
   end.
 
+Ltac make_subgoals impl :=
+  match type of impl with
+    | ?a -> ?b => assert b; try apply impl; make_subgoals b
+    | _ => idtac
+  end.
+
 Theorem unique_ppl : forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_prod ppl2 n -> PPL.Equal ppl1 ppl2.
   unfold PPL.Equal.
   assert (forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_prod ppl2 n -> forall a, PPL.In a ppl1 -> PPL.In a ppl2).
@@ -549,40 +568,56 @@ Theorem unique_ppl : forall n ppl1 ppl2, PPL.unique_prod ppl1 n -> PPL.unique_pr
     apply (PPLProps.ppl_product_prime_div H1); try assumption.
     PEP.simpl_peps; reflexivity.
   destruct (@euclids_ppl ppl2 n p); try assumption.
+  assert (PEP.pep_intro p0 z = x).
   destruct H0.
   destruct x.
-  unfold PEP.pep_prime in H2.
-  simpl in H2.
-  subst p1.
-  destruct (PPLProps.ppl_product_value_div H0 e0).
+  apply PEP.pep_pair_sufficient.
+  unfold PEP.pep_to_pair; simpl.
   PEP.simpl_peps_in H2.
-  pose (PPL.remove (PEP.pep_intro p2 z0) ppl2).
-
+  subst p1.
+  f_equal.
   pose (PPLProps.ppl_product_remove H0).
-  rewrite Zmult_comm in H2.
   rewrite e0 in e3.
   PEP.simpl_peps_in e3.
-  rewrite H2 in e3.
-  assert (q = PPL.ppl_product (PPL.remove (PEP.pep_intro p2 z0) ppl2)); try assumption.
-    apply (Zmult_reg_l) with (p := p ^ e2).
-    pose p0.
-    destruct p1.
-    assert (e2 >= 0) by omega.
-    pose (@PPLProps.exp_big p (Zlt_gt 1 p H3) e2 H5).
-    omega.
+  pose (PPLProps.ppl_product_remove H1).
+  PEP.simpl_peps_in e4.
+  rewrite e in e4.
+  rewrite e3 in e4.
+  assert (e1 >= 0) by omega.
+  assert (e2 >= 0) by omega.
+  destruct p0. 
+  assert (p > 1) by omega.
+  destruct (Ztrichotomy e1 e2); try assumption.
+    assert (e2 > e1) by omega.  
+    pose (exp_cancel _ _ H2 H6 H4 e4).
+    assert (e2 - e1 >= 1) by omega.
+    assert (p | PPL.ppl_product (PPL.remove (PEP.pep_intro (prime_intro p z1 r) z) ppl1)).
+    rewrite <- e5.
+    apply Zdivide_mult_l.
+    apply power_div; omega.
+    apply euclids_ppl with (ppl := (PPL.remove (PEP.pep_intro (prime_intro p z1 r) z) ppl1)) in H8; try reflexivity; try assumption.
+    do 2 destruct H8.
+    apply (PPL.remove_spec) in H8; destruct H8.
+    elimtype False.
+    apply H10.
+    destruct x; f_equal; auto.
+    destruct H5.
     assumption.
-  destruct (Ztrichotomy e1 e2).
-  
-  symmetry in H3.
-  destruct (Zdivide_dec p q).
-  destruct (euclids_ppl t H3 z1 p0).
-  destruct H4.
-  elimtype False.
-  unfold PPL.unique_primes in u0.
-  apply PPL.remove_spec in H4.
-  destruct H4.
-  apply H6.
-  apply u0; assumption.
-  rewrite <- H3 in H2.
-  classical_contradiction.
-  apply n0.
+    symmetry in e4.
+    pose (exp_cancel _ _ H3 H5 H4 e4).
+    assert (e1 - e2 >= 1) by omega.
+    assert (p | PPL.ppl_product (PPL.remove (PEP.pep_intro p2 z0) ppl2)).
+    rewrite <- e5.
+    apply Zdivide_mult_l.
+    apply power_div; omega.
+    apply euclids_ppl with (ppl := (PPL.remove (PEP.pep_intro p2 z0) ppl2)) in H7; try reflexivity; try assumption.
+    do 2 destruct H7.
+    apply (PPL.remove_spec) in H7; destruct H7.
+    elimtype False.
+    apply H9.
+    destruct x; f_equal; auto.
+  rewrite H2.
+  destruct H0.
+  assumption.
+  intros; split; eauto.
+Qed.
