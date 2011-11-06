@@ -25,12 +25,17 @@ Qed.
 Definition qr_by (m a x : Z) : Prop := (x * x == a) (mod m).
 Definition qr m (mge0 : 0 < m) a : Prop := exists x, qr_by m a x.
 
+Hint Unfold qr qr_by eqm.
+
 Theorem qr_by_dec : forall m a x, {qr_by m a x} + {~ qr_by m a x}.
   intros.
   unfold qr_by.
   unfold eqm.
   repeat decide equality.
 Qed.
+
+Hint Rewrite <- Zmult_mod : cpdt.
+Hint Resolve Z_mod_lt.
 
 Lemma qr_small : forall m (mge0 : 0 < m) a, (qr mge0 a) <-> exists x, 0 <= x < m /\ qr_by m a x.
   intros.
@@ -48,10 +53,37 @@ Lemma qr_small : forall m (mge0 : 0 < m) a, (qr mge0 a) <-> exists x, 0 <= x < m
   tauto.
 Qed.
 
-SearchAbout (forall _, {_} + {_}).
+Hint Resolve ex_intro.
 
-Lemma qr_dec : forall m (mge0 : 0 < m) a, {qr mge0 a} + {forall x, ~ (x * x == 0) (mod m)}.
+Ltac unf_crush := autounfold with *; crush.
+
+Lemma qr_dec : forall m (mge0 : 0 < m) a, {qr mge0 a} + {forall x, ~ (x * x == a) (mod m)}.
   intros.
-  pose (Z_bounded_dec (qr_by m a) (qr_by_dec _ _) m).
-  destruct o.
+  destruct (Z_bounded_dec (qr_by m a) (qr_by_dec _ _) m).
+  destruct (constructive_indefinite_description Z Z_in_nat nat_in_Z Z_nat_inv _ (dec_to_bounded_dec _ (qr_by_dec m a) m) e).
+  destruct a0.
+  intuition (eauto with *).
+  right.
+  do 2 intro.
+  assert (m > 0) by omega.
+  apply (n (x mod m));
+  [ auto | unf_crush].
+Qed.
+
+Definition legendre m (mgt0 : 0 < m) a (pr : prime m) (oddpr : 2 < m) : Z :=
+  match (Zdivide_dec a m) with
+    | left _ => 0
+    | right _ => match (qr_dec mgt0 a) with
+              | left _ => 1
+              | right _ => -1
+            end
+  end.
+
+Theorem fermats_little : forall a p, prime p -> (a ^ p == a) (mod p).
+  intros.
+  apply (Zind (fun a => (a ^ p == a) (mod p))).
+  rewrite Zpower_0_l; crush.
+  destruct H; omega.
+  intros.
+  rewrite <- (Zsucc_succ').
   
