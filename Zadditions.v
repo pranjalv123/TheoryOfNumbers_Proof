@@ -12,6 +12,8 @@ Notation "'No'" := (right _ _).
 
 Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; fold Zpower_pos; try omega.
 
+Hint Resolve ex_intro.
+
 Theorem Zind_ge0 : forall (P : Z -> Prop), P 0 -> (forall n : Z, n >= 0 -> P n -> P (Zsucc n)) -> (forall n, n >= 0 -> P n).
   intro.
   intro.

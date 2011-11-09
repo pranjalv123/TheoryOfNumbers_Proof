@@ -37,24 +37,6 @@ Qed.
 Hint Rewrite <- Zmult_mod : cpdt.
 Hint Resolve Z_mod_lt.
 
-Lemma qr_small : forall m (mge0 : 0 < m) a, (qr mge0 a) <-> exists x, 0 <= x < m /\ qr_by m a x.
-  intros.
-  split; intros.
-  destruct H.
-  exists (x mod m).
-  split.
-  apply Z_mod_lt; try omega.
-  unfold qr_by.
-  unfold eqm.
-  rewrite <- Zmult_mod.
-  apply H.
-  destruct H.
-  exists x.
-  tauto.
-Qed.
-
-Hint Resolve ex_intro.
-
 Ltac unf_crush := autounfold with *; crush.
 
 Lemma qr_dec : forall m (mge0 : 0 < m) a, {qr mge0 a} + {forall x, ~ (x * x == a) (mod m)}.
