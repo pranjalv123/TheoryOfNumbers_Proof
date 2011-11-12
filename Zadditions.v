@@ -3,6 +3,7 @@ Require Export Zpow_facts.
 Require Import Even.
 Require Import ConstructiveEpsilon.
 Require Import CpdtTactics.
+Require Export BinomialTheorem.
 
 Open Scope Z_scope.
 Set Implicit Arguments.
@@ -59,12 +60,15 @@ Qed.
 
 Lemma exp_big : forall p, p > 1 -> forall e, e >= 0 -> p ^ e >= 1.
   intros.
-  apply (Zind_ge0 (fun x => p ^ x >= 1)); crush.
+  apply (Zind_ge0 (fun x => p ^ x >= 1)).
+  crush.
+  intros.
   change (Zsucc n) with (n + 1).
   rewrite Zpower_exp; try omega.
   rewrite <- Zmult_1_r.
   apply Zmult_ge_compat; try omega.
   simpl_power.
+  assumption.
 Qed.
 
 Lemma exp_cancel : forall p e1 e2 m n, e2 >= 0 -> e1 > e2 -> p > 1 -> p ^ e1 * m = p ^ e2 * n -> p ^ (e1 - e2) * m = n.
