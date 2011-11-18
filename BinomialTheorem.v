@@ -305,7 +305,8 @@ Lemma Zabs_cancel : forall n, Zabs_nat (Z_of_nat n) = n.
   destruct n; crush.
 Qed.
 
-Hint Rewrite Zabs_cancel Zpos_eq_Z_of_nat_o_nat_of_P Zpower_nat_Zpower : cpdt.
+Hint Rewrite Zabs_cancel : cpdt.
+Hint Rewrite <- Zpos_eq_Z_of_nat_o_nat_of_P.
 
 Definition binomial_Z (n : Z) (k : Z) : Z :=
   binomial (Zabs_nat n) (Zabs_nat k).

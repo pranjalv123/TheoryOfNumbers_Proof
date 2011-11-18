@@ -13,62 +13,48 @@ Notation "'No'" := (right _ _).
 
 Ltac simpl_power := unfold Zpower; unfold Zpower_pos; simpl; fold Zpower_pos; try omega.
 
-Hint Resolve ex_intro.
+Ltac unf_crush := autounfold with *; crush.
 
-Theorem Zind_ge0 : forall (P : Z -> Prop), P 0 -> (forall n : Z, n >= 0 -> P n -> P (Zsucc n)) -> (forall n, n >= 0 -> P n).
-  intro.
-  intro.
-  intro.
-  assert (forall k x, x <= k -> 0 < x -> P x).
-  apply (Zind (fun k => forall x, x <= k -> 0 < x -> P x)).
-  crush.
-  intros.
-  rewrite <- Zsucc_succ' in H2.
-  destruct (Z_le_lt_eq_dec x0 (Zsucc x) H2).
-  apply Zlt_succ_le in z.
-  apply H1; assumption.
-  subst x0; apply H0.
-  omega.
-  apply Zlt_succ_le in H3.
-  destruct (Z_le_lt_eq_dec 0 x H3).
-  apply H1; crush.
-  crush.
-  intros.
-  rewrite <- Zpred_pred' in H2.
-  apply H1; try assumption.
-  pose (Zle_pred x); omega.
-  intros.
-  apply Zge_le in H2.
-  destruct (Z_le_lt_eq_dec 0 n H2).
-  apply (H1 n n); crush.
-  crush.
+Lemma Zplus_minus_l : forall n m, n - m + m = n.
+  intros; omega.
 Qed.
+
+Lemma Zpred_plus_l : forall a b, Zpred a + b = Zpred (a + b).
+  unfold Zpred; crush.
+Qed.
+
+Lemma Zpred_plus_r : forall a b, a + Zpred b = Zpred (a + b).
+  unfold Zpred; crush.
+Qed.
+
+Hint Resolve ex_intro.
+Hint Rewrite Zplus_0_l Zplus_0_r Zmult_1_r Zmult_1_l Zmult_0_r Zmult_0_l Zplus_minus_l : cpdt.
+Hint Extern 1 => match goal with
+                   | [ |- context [ Zsucc ?a + ?b ] ] => replace (Zsucc a + b) with (Zsucc (a + b)) by omega
+                   | [ |- context [ ?a + Zsucc ?b ] ] => replace (a + Zsucc b) with (Zsucc (a + b)) by omega
+                   | [ |- context [ Zpred ?a + ?b ] ] => rewrite Zpred_plus_l
+                   | [ |- context [ ?a + Zpred ?b ] ] => rewrite Zpred_plus_r
+                 end.
 
 Theorem Zind_ge_m : forall (P : Z -> Prop) (m : Z), P m -> (forall n : Z, n >= m -> P n -> P (Zsucc n)) -> (forall n, n >= m -> P n).
   intros.
-  assert (n - m >= 0) by omega.
   pose (Q := fun k => P (k + m)).
   assert (Q (n - m)).
-  apply Zind_ge0; unfold Q; simpl; crush.
-  rewrite Zplus_succ_l.
-  apply H0; try omega; try assumption.
-  unfold Q in H3.
-  rewrite Zplus_comm in H3.
-  rewrite Zplus_minus in H3.
-  assumption.
+  apply natlike_ind; unfold Q; crush.
+  unfold Q in H2; crush.
 Qed.
 
+Ltac induction_ge_m m var :=
+  let name := (fresh "Hge0") in assert (name : var >= m) by omega;
+    generalize var name;
+      apply Zind_ge_m.
+
+SearchAbout (_ <= _ ^ _).
 Lemma exp_big : forall p, p > 1 -> forall e, e >= 0 -> p ^ e >= 1.
   intros.
-  apply (Zind_ge0 (fun x => p ^ x >= 1)).
-  crush.
-  intros.
-  change (Zsucc n) with (n + 1).
-  rewrite Zpower_exp; try omega.
-  rewrite <- Zmult_1_r.
-  apply Zmult_ge_compat; try omega.
-  simpl_power.
-  assumption.
+  apply Zle_ge.
+  replace 1 with (p ^ 0) by crush.
+  apply Zpower_le_monotone; crush.
 Qed.
 
 Lemma exp_cancel : forall p e1 e2 m n, e2 >= 0 -> e1 > e2 -> p > 1 -> p ^ e1 * m = p ^ e2 * n -> p ^ (e1 - e2) * m = n.
@@ -184,6 +170,8 @@ Definition dec_to_bounded_dec : forall (P : Z -> Prop), (forall n, {P n} + {~ P 
   right; omega.
   right; omega.
 Qed.
+
+Definition constructive_indefinite_description_Z := constructive_indefinite_description Z Z_in_nat nat_in_Z Z_nat_inv.
   
 Lemma Z_bounded_dec : forall (P : Z -> Prop), (forall n, {P n} + {~ P n}) -> forall n, {exists x, 0 <= x < n /\ P x} + {forall x, 0 <= x < n -> ~ P x}.
   do 2 intro.
