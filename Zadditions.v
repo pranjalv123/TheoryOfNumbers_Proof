@@ -203,3 +203,33 @@ Lemma Z_bounded_dec : forall (P : Z -> Prop), (forall n, {P n} + {~ P n}) -> for
   assert (0 <= n) by omega.
   apply (H0 _ H1).
 Qed.
+
+Lemma Z_lt_induction_strong : forall P : Z -> Prop, (forall x : Z, 0 <= x -> (forall y : Z, 0 <= y < x -> P y) -> P x) -> forall x : Z, 0 <= x -> P x.
+  intros.
+  assert (0 <= x) by omega.
+  generalize x H0 H0.
+  apply (Z_lt_induction (fun x0 => 0 <= x0 -> P x0)); crush.
+Qed.
+
+Lemma Z_min_0 : forall m (P : Z -> Prop), 0 <= m -> P m -> (forall x, {P x} + {~ P x}) -> exists n, 0 <= n <= m /\ P n /\ forall x, 0 <= x < n -> ~ P x.
+  intros.
+  generalize m H H0.
+  apply (Z_lt_induction_strong (fun m0 => P m0 -> exists n, _)).
+  intros.
+  destruct (Z_bounded_dec _ H1 x).
+  destruct e.
+  destruct H5.
+  destruct (H3 x0); try assumption.
+  exists x1; crush.
+  exists x; crush.
+Qed.
+
+Lemma Z_min_0_lt : forall m (P : Z -> Prop), 0 < m -> P m -> (forall x, {P x} + {~ P x}) -> exists n, 0 < n <= m /\ P n /\ forall x, 0 < x < n -> ~ P x.
+  intros.
+  pose (Q := (fun x => P (x + 1))).
+  assert (forall x : Z, {Q x} + {~ Q x}) by (intros; destruct (H1 (x + 1)); crush).
+  destruct (Z_min_0 (m := m - 1) Q); try unfold Q; crush.
+  exists (x + 1).
+  crush.
+  apply (H7 (x0 - 1)); try unfold Q; crush.
+Qed.

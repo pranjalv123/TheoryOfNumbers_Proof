@@ -353,6 +353,13 @@ Section Fp_field_theory.
     fcrush.
   Qed.
 
+  Hint Rewrite Zopp_involutive : cpdt.
+  Lemma Fp_power_inv_comm : forall a e, Fp_power a (- e) == / Fp_power a e (mod p).
+    intros.
+    rewrite <- Fp_power_inv_opp_2.
+    solve_Fp_power.
+  Qed.
+
   Ltac induction_Z var := generalize var; apply Zind; intros; try rewrite <- Zsucc_succ'; try rewrite <- Zpred_pred'.
 
   Lemma Fp_mult_integral : forall a b, (a * b) == 0 (mod p) -> a == 0 (mod p) \/ b == 0 (mod p).

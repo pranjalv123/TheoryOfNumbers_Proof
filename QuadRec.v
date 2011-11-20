@@ -4,7 +4,9 @@ Require Import Znumtheory.
 Require Import List.
 Require Import Arith.
 Require Import Div2.
-Load Congruences.
+Require Import Congruences.
+Require Import ConstructiveEpsilon.
+Require Import Setoid Morphisms.
 
 Open Scope Z_scope.
 Set Implicit Arguments.
@@ -334,9 +336,6 @@ Section quadratic_reciprocity.
     omega.
   Qed.
 
-  Variable a : Z.
-  Variable aprp : ~ a == 0 (mod p).
-
   Notation "/ a" := (Fp_inv p a).
 
   Instance def' : (DefaultRelation (eqm p)).
@@ -356,12 +355,12 @@ Section quadratic_reciprocity.
   Add Field Fp' : (Fp_field_theory pr).
 
   Hint Rewrite Fp_inv_spec : cpdt.
-  Theorem fermats_little_strong : a ^ (p - 1) == 1 (mod p).
+  Theorem fermats_little_strong : forall a, ~ a == 0 (mod p) -> a ^ (p - 1) == 1 (mod p).
     intros.
     setoid_replace (a ^ (p - 1)) with (/ a * a ^ p).
     rewrite fermats_little; crush.
     assert (p = (1 + (p - 1))) by omega.
-    rewrite H at 4.
+    rewrite H0 at 4.
     rewrite Zpower_exp; try omega.
     rewrite Zpower_1_r.
     field.
@@ -374,7 +373,7 @@ Section quadratic_reciprocity.
   Instance def'' : DefaultRelation (@eq Z).
   
   Hint Resolve fermats_little_strong odd_prime.
-  Lemma fermats_little_sqrt :
+  Lemma fermats_little_sqrt : forall a, ~ a == 0 (mod p) ->
     let r := a ^ ((p - 1) / 2) in r == 1 (mod p) \/ r == -1 (mod p).
     intros.
     assert (r^2 == 1 (mod p)).
@@ -393,12 +392,18 @@ Section quadratic_reciprocity.
     apply cong_equiv; try omega.
     unfold eqm; rewrite e; crush.
     apply Z_div_pos; omega.
-    apply cong_equiv in H; try omega.
-    rewrite diff_squares in H.
-    destruct (prime_mult p pr (r - 1) (r + 1) H); [ left | right ]; apply cong_equiv; crush.
+    apply cong_equiv in H0; try omega.
+    rewrite diff_squares in H0.
+    destruct (prime_mult p pr (r - 1) (r + 1) H0); [ left | right ]; apply cong_equiv; crush.
   Qed.
 
-  Notation "a  '^p'  b" := Fp_power a b.
+  Hint Immediate fermats_little_strong.
+  Theorem fermats_little_Fp : forall a, ~ a == 0 (mod p) -> Fp_power p a (p - 1) == 1 (mod p).
+    unfold Fp_power; destruct (Z_lt_le_dec 0 (p - 1)); crush.
+  Qed.
+
+  Notation "a ^ b" := (Fp_power p a b) : Fp_scope.
+  Open Scope Fp_scope.
 
   Inductive Fp_order : Z -> Z -> Prop :=
     | Fp_order_intro : forall b e, 0 < e -> Fp_power p b e == 1 (mod p) -> (forall f, 0 < f < e -> ~ Fp_power p b f == 1 (mod p)) -> Fp_order b e.
@@ -406,42 +411,184 @@ Section quadratic_reciprocity.
   Hint Resolve Zdivide_intro Zplus_eqm.
   Hint Rewrite Zmod_0_l Z_mod_plus_full prime_Zmod_1_l Fp_power_mult Fp_power_0_l Fp_power_0_r Fp_power_1_l Fp_power_1_r : cpdt.
   Hint Rewrite Fp_power_exp Fp_power_mult : cpdt.
-  Lemma order_divide : forall h, Fp_order a h -> forall k, (Fp_power p a k == 1 (mod p) <-> (h | k)).
+  Hint Rewrite fermats_little_Fp : cpdt.
+
+  Lemma Fp_order_exists : forall a, ~ a == 0 (mod p) -> exists r, Fp_order a r.
+    intros.
+    destruct (Z_min_0_lt (m := p - 1) (fun x => Fp_power p a x == 1 (mod p))).
+    omega.
+    crush.
+    intros; apply Z_mod_dec.
+    exists x; constructor; crush.
+  Qed.
+  
+  Lemma order_divide_weak :
+    forall a, ~ a == 0 (mod p) ->
+      forall h, Fp_order a h ->
+        forall k, 0 <= k ->
+          (Fp_power p a k == 1 (mod p) <-> (h | k)).
     intros; split; intros.
-    destruct H.
+    destruct H0.
     destruct (Ztrichotomy_inf e k).
     destruct s.
     assert (Hegr0 : e > 0) by omega.
     destruct (Zdiv_eucl_exist Hegr0 k).
     destruct x.
     destruct y.
-    rewrite H3 in H0.
-    destruct H4.
+    rewrite H5 in H2.
+    destruct H6.
     assert (0 <= z0).
     apply (Zmult_le_0_reg_r e).
     omega.
     assert (0 <= e * z0) by omega.
     rewrite Zmult_comm; assumption.
-    destruct (Z_le_lt_eq_dec _ _ H4).
-    elimtype False; apply (H2 z1).
+    destruct (Z_le_lt_eq_dec _ _ H6).
+    elimtype False; apply (H4 z1).
     omega.
-    rewrite Fp_power_exp, Fp_power_mult, H1 in H0; crush.
+    rewrite Fp_power_exp, Fp_power_mult, H3 in H2; crush.
     crush.
     crush.
     destruct (Z_lt_le_dec 0 k).
     exfalso.
-    apply (H2 k); crush.
-    crush.
-    destruct H1.
-    destruct H.
-    rewrite H1.
+    apply (H4 k); crush.
+    assert (k = 0); crush.
+    destruct H2.
+    destruct H0.
+    rewrite H2.
     rewrite Zmult_comm.
     assert (0 <= q) by (apply (Zmult_le_0_reg_r e q); omega).
-    rewrite Zpower_mult; try omega.
-    crush.
+    rewrite Fp_power_mult; crush.
   Qed.
 
+  Hint Rewrite Fp_power_inv_comm Fp_inv_1_weak : cpdt.
+  Theorem order_divide :
+    forall a, ~ a == 0 (mod p) ->
+      forall h, Fp_order a h ->
+        forall k, Fp_power p a k == 1 (mod p) <-> (h | k).
+    intros; split; intros; destruct (Z_lt_le_dec k 0).
+    assert (Fp_power p a (- k) == 1 (mod p)).
+    crush.
+    apply Zdivide_opp_r_rev.
+    apply (order_divide_weak H H0); crush.
+    apply (order_divide_weak H H0); crush.
+    assert (Fp_power p a (- k) == 1 (mod p)).
+    assert (0 <= - k) by omega.
+    apply (order_divide_weak H H0); crush.
+    rewrite <- (Fp_inv_involutive pr (Fp_power _ _ _)).
+    crush.
+    apply (order_divide_weak H H0 z); crush.
+  Qed.
   
+  Lemma Fp_inv_rewr : forall b c, b * c == 1 (mod p) -> b == / c (mod p).
+    intros.
+    field [H].
+    intro.
+    rewrite H0 in H.
+    unfold eqm in H; crush.
+  Qed.
+
+  Hint Resolve Zmult_divide_compat_l Zmult_divide_compat_r.
+  Lemma rel_prime_mult_divide : forall h k r, rel_prime h k -> (h | r) -> (k | r) -> (h * k | r).
+    intros.
+    destruct H1.
+    subst.
+    rewrite Zmult_comm in H0.
+    apply Gauss in H0; crush.
+  Qed.
+
+  Lemma Fp_power_1_not_0 : forall b e, e <> 0 -> Fp_power p b e == 1 (mod p) -> ~ b == 0 (mod p).
+    intros; intro.
+    rewrite H1 in H0.
+    autorewrite with cpdt in H0; unfold eqm in H0; crush.
+  Qed.
+
+  Lemma Fp_order_mult_lem : forall b c k x, 0 < k -> Fp_order (b * c) x -> Fp_power p c k == 1 (mod p) -> Fp_power p b (x * k) == 1 (mod p).
+    intros.
+    rewrite <- (Zmult_1_l (Fp_power _ _ _)).
+    rewrite <- (Fp_power_1_l pr x) at 1.
+    rewrite <- H1 at 1.
+    rewrite <- Fp_power_mult; try assumption.
+    rewrite (Zmult_comm k x).
+    rewrite Zmult_Fp_power; try assumption.
+    rewrite Zmult_comm.
+    destruct H0; crush.
+  Qed.
+
+  Lemma Fp_order_mult_divide : forall b c h k x, rel_prime h k -> 0 < k -> Fp_order (b * c) x -> Fp_power p c k == 1 (mod p) -> (h | x).
+    intros.
+    assert (Fp_power p b (x * k) == 1 (mod p)).
+    apply Fp_order_mult_lem with (c := c); crush.
+    assert (Hbn0 : ~ b == 0 (mod p)).
+    apply Fp_power_1_not_0 with (e := x * k).
+    intro.
+    destruct (Zmult_integral H4).
+
+  Hint Resolve Fp_power_1_not_0.
+  Lemma Fp_order_mult : forall b c h k, Fp_order b h -> Fp_order c k -> rel_prime h k -> Fp_order (b * c) (h * k).
+    intros.
+    pose H; destruct H.
+    pose H0; destruct H0.
+    constructor.
+    apply Zmult_lt_0_compat; crush.
+    rewrite <- Zmult_Fp_power; try rewrite (Zmult_comm e e1) at 2; crush.
+    intros; intro.
+    assert (Hfneq0 : f1 <> 0) by omega.
+    assert (Hbb0n0 : ~ b * b0 == 0 (mod p)) by eauto.
+    destruct (Fp_order_exists Hbb0n0).
+    destruct (order_divide Hbb0n0 H2 f1).
+    specialize (H3 H0).
+    assert (Fp_power p b (x * e1) == 1 (mod p)) by (apply Fp_order_mult_lem with (c := b0); crush).
+    assert (Hbn0 : ~ b == 0 (mod p)) by (apply Fp_power_1_not_0 with (e := e); crush).
+    apply (order_divide Hbn0 f) in H5.
+    rewrite Zmult_comm in H5.
+    apply Gauss in H5; try assumption.
+    rewrite <- (Zmult_1_l (Fp_power _ _ _)).
+    rewrite <- (Fp_power_1_l pr x) at 1; try omega.
+    rewrite <- e2 at 1.
+    rewrite <- Fp_power_mult; try assumption.
+    rewrite (Zmult_comm e1 x).
+    rewrite Zmult_Fp_power; try assumption.
+    rewrite Zmult_comm.
+    destruct H2; crush.
+    assert (Hen0: e <> 0) by omega.
+    assert (Hbn0 : ~ b == 0 (mod p)) by eauto.
+    destruct (order_divide Hbn0 f (x * e1)).
+    specialize (H6 H5).
+    assert (b * b0) ^ (
+    SearchAbout rel_prime.
+    constructor.
+    
+    
+    assumption.
+    intros; intro.
+    
+    
+    
+    apply (Fp_power_1_not_0 Hfneq0 H7).
+    
+    
+    apply (cong_equiv in H10.
+    
+    Check Zdiv_eucl_exist.
+    assert (Hegr0 : e  > 0) by omega.
+    destruct (Zdiv_eucl_exist Hegr0 f).
+    destruct x.
+    destruct y.
+    destruct H9.
+    destruct (Z_le_lt_eq_dec _ _ H9).
+    apply (H3 z0).
+    crush.
+    setoid_replace (Fp_power p b z0) with (Fp_power p b f).
+    rewrite <- Zmult_Fp_power in H7.
+    setoid_rewrite (Fp_inv_rewr _ _ H7).
+    apply Fp_inv_1; try assumption.
+    
+    crush.
+    subst.
+    rewrite Fp_power_exp.
+    rewrite Fp_power_mult.
+    rewrite H2.
+    crush.
   
   Theorem eulers_criterion_1 : qr pgt0 a <-> Fp_power a ((p - 1) / 2) == 1 (mod p).
     intros; split; intros.
